@@ -1,7 +1,10 @@
 #include "models/devicemodel.h"
 #include <QStorageInfo>
 #include <QSet>
+#include <QLoggingCategory>
 #include <algorithm>
+
+Q_LOGGING_CATEGORY(lcDeviceRefresh, "hyprfm.devices", QtWarningMsg)
 
 DeviceModel::DeviceModel(QObject *parent, bool deferInitialRefresh)
     : QAbstractListModel(parent)
@@ -52,6 +55,36 @@ void DeviceModel::refresh()
     std::sort(devices.begin(), devices.end(), [](const DeviceEntry &a, const DeviceEntry &b) {
         return a.mountPoint < b.mountPoint;
     });
+    // Capacity changes during polling must not destroy/recreate delegates.
+    // Reset only when the mounted filesystem identities actually change.
+    const bool sameMounts = devices.size() == m_devices.size()
+        && std::equal(devices.cbegin(), devices.cend(), m_devices.cbegin(),
+                      [](const DeviceEntry &a, const DeviceEntry &b) {
+            return a.mountPoint == b.mountPoint && a.devicePath == b.devicePath
+                && a.fsType == b.fsType;
+        });
+    if (sameMounts) {
+        int changed = 0;
+        for (int row = 0; row < devices.size(); ++row) {
+            const auto &old = m_devices.at(row);
+            const auto &next = devices.at(row);
+            QList<int> roles;
+            if (old.deviceName != next.deviceName) roles << DeviceNameRole;
+            if (old.totalSize != next.totalSize) roles << TotalSizeRole;
+            if (old.freeSpace != next.freeSpace) roles << FreeSpaceRole;
+            if (old.usagePercent != next.usagePercent) roles << UsagePercentRole;
+            if (old.removable != next.removable) roles << RemovableRole;
+            if (old.mounted != next.mounted) roles << MountedRole;
+            m_devices[row] = next;
+            if (!roles.isEmpty()) {
+                ++changed;
+                emit dataChanged(index(row), index(row), roles);
+            }
+        }
+        qCDebug(lcDeviceRefresh) << "poll:" << changed << "rows updated; no reset";
+        return;
+    }
+    qCDebug(lcDeviceRefresh) << "mount topology changed; reset" << devices.size() << "rows";
     beginResetModel();
     m_devices = devices;
     endResetModel();

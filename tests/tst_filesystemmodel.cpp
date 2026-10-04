@@ -21,6 +21,34 @@ class TestFileSystemModel : public QObject
     Q_OBJECT
 
 private slots:
+    void testSameFolderReloadKeepsRowsUntilScanCompletes()
+    {
+        TestDir dir;
+        dir.createFiles({"a.txt", "b.txt", ".hidden"});
+        FileSystemModel model;
+        model.setRootPath(dir.path());
+        QTRY_VERIFY(!model.isLoading());
+        QCOMPARE(model.rowCount(), 2);
+
+        model.sortByColumn("name", false);
+        QVERIFY(model.isLoading());
+        QCOMPARE(model.rowCount(), 2);
+        QTRY_VERIFY(!model.isLoading());
+        QCOMPARE(model.fileName(0), QStringLiteral("b.txt"));
+
+        model.setShowHidden(true);
+        QVERIFY(model.isLoading());
+        QCOMPARE(model.rowCount(), 2);
+        QTRY_VERIFY(!model.isLoading());
+        QCOMPARE(model.rowCount(), 3);
+
+        model.setHiddenLast(true);
+        QVERIFY(model.isLoading());
+        QCOMPARE(model.rowCount(), 3);
+        QTRY_VERIFY(!model.isLoading());
+        QCOMPARE(model.fileName(2), QStringLiteral(".hidden"));
+    }
+
     // Folder item counts for the detailed view are computed on a worker.
     void testFolderItemCountsArriveAsynchronously()
     {

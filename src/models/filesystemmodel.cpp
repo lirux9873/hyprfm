@@ -9,6 +9,7 @@
 #include <QLocale>
 #include <QDateTime>
 #include <QDebug>
+#include <QLoggingCategory>
 #include <QFuture>
 #include <QMimeDatabase>
 #include <QMutex>
@@ -27,6 +28,8 @@
 #include <QtConcurrent>
 #include <QCollator>
 #include <algorithm>
+
+Q_LOGGING_CATEGORY(lcFileSystemRefresh, "hyprfm.filesystem", QtWarningMsg)
 
 // Forward declarations for helpers defined further down (used by methods
 // that appear above their definition site).
@@ -663,12 +666,16 @@ QVariantMap buildTrashProperties(const QVariantMap &entry)
 FileSystemModel::FileSystemModel(QObject *parent)
     : QAbstractListModel(parent)
 {
+    connect(this, &QAbstractItemModel::modelReset, this, [this]() {
+        qCDebug(lcFileSystemRefresh) << this << "model reset" << m_rootPath << "rows" << rowCount();
+    });
     // Filesystem watching delivers one event per file; an unpack of thousands of files
     // would otherwise queue thousands of full rescans.
     m_refreshDebounce.setSingleShot(true);
     m_refreshDebounce.setInterval(150);
     connect(&m_refreshDebounce, &QTimer::timeout, this, &FileSystemModel::refresh);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, [this]() {
+        qCDebug(lcFileSystemRefresh) << this << "directory notification" << m_rootPath;
         if (!m_rootPath.isEmpty())
             emit watchedDirectoryChanged(m_rootPath);
         m_refreshDebounce.start();
@@ -932,6 +939,7 @@ void FileSystemModel::setIsLoading(bool loading)
     if (m_isLoading == loading)
         return;
     m_isLoading = loading;
+    qCDebug(lcFileSystemRefresh) << this << "loading" << loading << m_rootPath << "rows" << rowCount();
     emit isLoadingChanged();
 }
 
@@ -1001,7 +1009,7 @@ void FileSystemModel::setShowHidden(bool show)
         return;
     m_showHidden = show;
     if (!m_rootPath.isEmpty())
-        reload();
+        reload(false);
     emit showHiddenChanged();
 }
 
@@ -1011,7 +1019,7 @@ void FileSystemModel::setHiddenLast(bool last)
         return;
     m_hiddenLast = last;
     if (!m_rootPath.isEmpty())
-        reload();
+        reload(false);
 }
 
 void FileSystemModel::sortByColumn(const QString &column, bool ascending)
@@ -1038,11 +1046,12 @@ void FileSystemModel::sortByColumn(const QString &column, bool ascending)
         flags |= QDir::Reversed;
 
     m_sortFlags = flags;
-    reload();
+    reload(false);
 }
 
 void FileSystemModel::refresh()
 {
+    qCDebug(lcFileSystemRefresh) << this << "refresh" << m_rootPath;
     if (isTrashRoot()) {
         reload();
         return;
@@ -1101,8 +1110,9 @@ QString FileSystemModel::fileName(int row) const
     return m_entries.at(row).name;
 }
 
-void FileSystemModel::reload()
+void FileSystemModel::reload(bool clearExisting)
 {
+    qCDebug(lcFileSystemRefresh) << this << "full reload" << m_rootPath << "clear existing" << clearExisting;
     setIsLoading(true);
     cancelRemoteReload();
     ++m_remoteReloadGeneration;
@@ -1138,24 +1148,19 @@ void FileSystemModel::reload()
         return;
     }
 
-    // Local: clear existing rows immediately so old directory's contents
-    // vanish the moment the user navigates; the async scan will repopulate
-    // via applyLocalReload() which runs its own begin/endResetModel.
-    beginResetModel();
-    m_entries.clear();
-    m_remoteEntries.clear();
-    m_trashEntries.clear();
-    m_fileCount = 0;
-    m_folderCount = 0;
-    endResetModel();
-    emit countsChanged();
-
-    reloadLocal();
-}
-
-void FileSystemModel::reloadLocal()
-{
-    scheduleLocalReload(/*tryDiff=*/false);
+    // Navigation must drop the previous folder. Re-sorting or filtering the
+    // same folder must keep it on screen while the worker builds a replacement.
+    if (clearExisting) {
+        beginResetModel();
+        m_entries.clear();
+        m_remoteEntries.clear();
+        m_trashEntries.clear();
+        m_fileCount = 0;
+        m_folderCount = 0;
+        endResetModel();
+        emit countsChanged();
+    }
+    scheduleLocalReload(/*tryDiff=*/!clearExisting);
 }
 
 // QFileInfo::suffix() without the QFileInfo: everything after the last dot,

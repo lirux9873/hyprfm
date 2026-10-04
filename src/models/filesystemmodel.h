@@ -180,8 +180,7 @@ private:
 
     void ensurePopulated(const Entry &entry) const;
 
-    void reload();
-    void reloadLocal();
+    void reload(bool clearExisting = true);
     void reloadRemote();
     void reloadTrash();
     void cancelRemoteReload();

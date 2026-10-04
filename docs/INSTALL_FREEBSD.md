@@ -186,6 +186,27 @@ fresh build directory. For graphics failures, try `QSG_RHI_BACKEND=opengl`; the
 offscreen software renderer is for tests. Missing previews usually indicate a
 missing helper in `PATH`; Settings lists the dependencies.
 
+## Diagnosing periodic flicker
+
+Close all HyprFM windows first so a new launch does not hand off to a process
+without logging enabled. In an sh-compatible terminal, run:
+
+```sh
+env QT_LOGGING_RULES='hyprfm.filesystem.debug=true;hyprfm.devices.debug=true' \
+  QT_MESSAGE_PATTERN='[%{time process}] %{category}: %{message}' \
+  hyprfm 2>hyprfm-refresh.log
+```
+
+Save the log outside the folder being viewed, so log writes cannot themselves
+trigger directory notifications. Note the elapsed time when the flicker occurs.
+The log records filesystem notifications, loading state, model resets and device
+polling. Paths are included; review the log before sharing it.
+
+If the content disappears without a corresponding file-model reset, compare a
+fresh launch with `QSG_RHI_BACKEND=opengl hyprfm` and record the desktop session,
+view mode and whether the sidebar also disappears. This selects a different Qt
+rendering backend for diagnosis; it does not change saved configuration.
+
 ## References
 
 - [FreeBSD Porter's Handbook: Qt and GNOME dependencies](https://docs.freebsd.org/en/books/porters-handbook/special/)

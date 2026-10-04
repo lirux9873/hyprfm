@@ -8,6 +8,26 @@ class TestDeviceModel : public QObject
     Q_OBJECT
 
 private slots:
+    void testPollingDoesNotResetUnchangedMounts()
+    {
+        DeviceModel model;
+        auto identities = [&model]() {
+            QStringList result;
+            for (int row = 0; row < model.rowCount(); ++row) {
+                result << model.data(model.index(row), DeviceModel::DevicePathRole).toString()
+                       << model.data(model.index(row), DeviceModel::MountPointRole).toString();
+            }
+            return result;
+        };
+        const QStringList before = identities();
+        QSignalSpy resets(&model, &QAbstractItemModel::modelReset);
+        model.refresh();
+        model.refresh();
+        if (identities() != before)
+            QSKIP("Mount topology changed during the test");
+        QCOMPARE(resets.count(), 0);
+    }
+
     void testInitialRefresh()
     {
         DeviceModel model;
