@@ -63,21 +63,8 @@ bool isTrashUri(const QString &path)
     return QUrl(path).scheme() == "trash";
 }
 
-bool shouldSpawnHostTool()
-{
-    static const bool inSandbox = QFile::exists(QStringLiteral("/.flatpak-info"));
-    return inSandbox;
-}
-
 void startHostToolProcess(QProcess *process, const QString &program, const QStringList &arguments)
 {
-    if (shouldSpawnHostTool()) {
-        QStringList args;
-        args << QStringLiteral("--host") << program << arguments;
-        process->start(QStringLiteral("flatpak-spawn"), args);
-        return;
-    }
-
     process->start(program, arguments);
 }
 
@@ -378,8 +365,8 @@ PreviewKind previewKindForEntry(const QString &localPath, bool isDir,
 }
 
 // QFileInfo::owner()/group() resolve the id through NSS on every call:
-// ~250 us each with systemd-userdb, which made them 80% of the cost of
-// filling in a row. A directory holds a handful of distinct ids, so resolve
+// repeated account database lookups can dominate the cost of filling a row.
+// A directory holds a handful of distinct ids, so resolve
 // each once. ponytail: never invalidated; a renamed user or group keeps its
 // old name until restart.
 QString cachedIdName(const QFileInfo &info, bool group)
@@ -550,7 +537,6 @@ QVariantMap remotePropertiesFromGioInfo(const QString &normalizedPath, const QSt
     return props;
 }
 
-
 QVariantMap buildRemotePropertiesFromEntry(const QVariantMap &entry)
 {
     QVariantMap props;
@@ -677,7 +663,7 @@ QVariantMap buildTrashProperties(const QVariantMap &entry)
 FileSystemModel::FileSystemModel(QObject *parent)
     : QAbstractListModel(parent)
 {
-    // inotify delivers one event per file; an unpack of thousands of files
+    // Filesystem watching delivers one event per file; an unpack of thousands of files
     // would otherwise queue thousands of full rescans.
     m_refreshDebounce.setSingleShot(true);
     m_refreshDebounce.setInterval(150);
@@ -1756,12 +1742,6 @@ void FileSystemModel::reloadTrash()
         return;
     }
 
-    // Read the trash directories directly rather than asking gvfs for a
-    // trash:// listing. gvfs is a session daemon, so any install without one
-    // (Nix without services.gvfs.enable, AppImage, Flatpak) showed an empty
-    // Trash even with files sitting in ~/.local/share/Trash/files.
-    // XdgTrash::scan() also covers .Trash-<uid> on other mounted volumes,
-    // which the old `gio list trash:///` call did too.
     const QList<XdgTrash::Entry> found = XdgTrash::scan();
     for (const XdgTrash::Entry &source : found) {
         const QVariantMap entry = buildTrashEntryFromLocal(source);
@@ -2080,46 +2060,16 @@ QVariantMap FileSystemModel::trashFileProperties(const QString &path) const
     return props;
 }
 
-// True when this binary is running inside a Flatpak sandbox.
-static bool runningInFlatpak()
-{
-    static const bool inSandbox = QFile::exists(QStringLiteral("/.flatpak-info"));
-    return inSandbox;
-}
-
-// Directories to scan for installed application .desktop files. Inside a
-// Flatpak sandbox, QStandardPaths::ApplicationsLocation only sees the
-// runtime + bundled apps, so we point at the host paths exposed via
-// `--filesystem=host` (which mounts host /usr at /run/host/usr).
 static QStringList applicationDataDirs()
 {
-    if (!runningInFlatpak())
-        return QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
-
-    QStringList dirs;
-    const QString home = QDir::homePath();
-    dirs << home + QStringLiteral("/.local/share/applications")
-         << home + QStringLiteral("/.local/share/flatpak/exports/share/applications")
-         << QStringLiteral("/run/host/usr/local/share/applications")
-         << QStringLiteral("/run/host/usr/share/applications")
-         << QStringLiteral("/run/host/var/lib/flatpak/exports/share/applications");
-    return dirs;
+    return QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
 }
 
-// Run a host CLI tool, transparently wrapping it in `flatpak-spawn --host`
-// when we're inside a Flatpak sandbox. Returns trimmed stdout. (Default
-// for timeoutMs is on the forward declaration at the top of the file.)
 static QString runHostTool(const QString &program, const QStringList &arguments,
                            int timeoutMs)
 {
     QProcess proc;
-    if (runningInFlatpak()) {
-        QStringList args;
-        args << QStringLiteral("--host") << program << arguments;
-        proc.start(QStringLiteral("flatpak-spawn"), args);
-    } else {
-        proc.start(program, arguments);
-    }
+    proc.start(program, arguments);
     proc.waitForFinished(timeoutMs);
     return QString::fromUtf8(proc.readAllStandardOutput());
 }
@@ -2150,8 +2100,6 @@ QVariantList FileSystemModel::availableApps(const QString &mimeType) const
     if (mimeType.isEmpty())
         return apps;
 
-    // Inside a Flatpak this transparently runs `flatpak-spawn --host gio
-    // mime <type>` so we see the host's MIME associations and host apps.
     QString output = runHostTool(QStringLiteral("gio"),
                                  {QStringLiteral("mime"), mimeType});
 

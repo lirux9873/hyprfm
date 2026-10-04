@@ -17,11 +17,10 @@ ApplicationWindow {
     visibility: Window.Windowed
     title: "HyprFM"
     color: "transparent"
-    flags: Qt.platform.os === "linux" && runtimeFeatures.useIntegratedWindowControls
+    flags: runtimeFeatures.useIntegratedWindowControls
         ? (Qt.Window | Qt.FramelessWindowHint) : Qt.Window
 
-    readonly property bool useIntegratedWindowControls: Qt.platform.os === "linux"
-        && config.showWindowControls
+    readonly property bool useIntegratedWindowControls: config.showWindowControls
 
     property bool primaryPaneIsRecents: false
     property bool secondaryPaneIsRecents: false
@@ -3152,13 +3151,13 @@ ApplicationWindow {
                             }
                         }
                     } else if (action === "mountdevice") {
-                        if (sidebarItem.backend === "udisks2" && !runtimeFeatures.udisksctlAvailable) {
+                        if (sidebarItem.backend === "freebsd" && !runtimeFeatures.deviceMountAvailable) {
                             toast.show(runtimeFeatures.installHint("deviceMount"), "info")
                         } else if (sidebarItem.kind === "device" && sidebarItem.index >= 0) {
                             devices.mount(sidebarItem.index)
                         }
                     } else if (action === "unmountdevice") {
-                        if (sidebarItem.backend === "udisks2" && !runtimeFeatures.udisksctlAvailable) {
+                        if (sidebarItem.backend === "freebsd" && !runtimeFeatures.deviceMountAvailable) {
                             toast.show(runtimeFeatures.installHint("deviceMount"), "info")
                         } else if (sidebarItem.kind === "device" && sidebarItem.index >= 0) {
                             devices.unmount(sidebarItem.index)
@@ -3935,7 +3934,7 @@ ApplicationWindow {
                 }
             }
 
-            // File view (semi-transparent — Hyprland compositor blurs behind this)
+            // File view (semi-transparent — desktop compositor blurs behind this)
             Rectangle {
                 id: contentArea
                 Layout.fillWidth: true
@@ -4279,6 +4278,10 @@ ApplicationWindow {
 
     Connections {
         target: rcloneService
+        function onUnmountFinished(remoteName, success) {
+            if (!success)
+                toast.show("Could not unmount " + remoteName + ". Close files using it and check mount permissions.", "error")
+        }
         function onMountFinished(remoteName, success, error) {
             var remaining = []
             for (var i = 0; i < pendingCloudCallbacks.length; ++i) {

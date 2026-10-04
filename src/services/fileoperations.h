@@ -95,8 +95,8 @@ public:
     // miscounted total should slow the bar down, never send it past full.
     static double progressFraction(int current, int total);
     Q_INVOKABLE void setWallpaper(const QString &path);
-    Q_INVOKABLE void setHyprlandRounding(const QString &windowTitle, int radius);
-    Q_INVOKABLE void setHyprlandBorder(const QString &windowTitle, int size);
+    Q_INVOKABLE void setWindowRounding(const QString &windowTitle, int radius);
+    Q_INVOKABLE void setWindowBorder(const QString &windowTitle, int size);
 
 signals:
     void busyChanged();

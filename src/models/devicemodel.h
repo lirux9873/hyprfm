@@ -4,32 +4,18 @@
 #include <QList>
 #include <QTimer>
 
-typedef struct _GMount GMount;
-typedef struct _GVolume GVolume;
-typedef struct _GVolumeMonitor GVolumeMonitor;
-
-enum class DeviceBackend {
-    UDisks2,
-    Gio,
-};
-
 struct DeviceEntry {
     QString deviceName;
-    QString devicePath;   // block device path, e.g. /dev/nvme0n1p5
+    QString devicePath;   // block device path, e.g. /dev/ada0p2
     QString mountPoint;   // empty if unmounted
-    QString fsType;       // e.g. "ntfs", "ext4" — used for error messages
+    QString fsType;       // e.g. "ufs", "zfs" — used for error messages
     qint64  totalSize;
     qint64  freeSpace;
     int     usagePercent;
     bool    removable;
     bool    mounted;
     QString alternateMountPoint;
-    DeviceBackend backend = DeviceBackend::UDisks2;
-    GVolume *gioVolume = nullptr;
-    GMount *gioMount = nullptr;
 };
-
-class QDBusMessage;
 
 class DeviceModel : public QAbstractListModel
 {
@@ -68,14 +54,6 @@ signals:
     void mountError(const QString &message);
 
 private:
-    void applyUDisksReply(const QDBusMessage &reply);
-    void clearDevices();
-    void setupGioMonitor();
-    void setupUDisks2();
-    static bool isVirtual(const QString &fsType);
-
     QList<DeviceEntry> m_devices;
-    GVolumeMonitor *m_volumeMonitor = nullptr;
-    quint64 m_refreshGeneration = 0;
     QTimer m_refreshTimer;
 };

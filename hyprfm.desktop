@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=HyprFM
-Comment=File manager for Hyprland
+Comment=File manager for FreeBSD
 Exec=hyprfm %U
 Icon=system-file-manager
 Terminal=false

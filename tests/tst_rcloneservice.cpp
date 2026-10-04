@@ -9,6 +9,17 @@ class TestRcloneService : public QObject
     Q_OBJECT
 
 private slots:
+    void testMountRejectsPathTraversal()
+    {
+        RcloneService service;
+        QSignalSpy finished(&service, &RcloneService::mountFinished);
+        service.mountRemote(QStringLiteral("../escape"));
+        QCOMPARE(finished.count(), 1);
+        QVERIFY(!finished.first().at(1).toBool());
+        QVERIFY(finished.first().at(2).toString().contains("Invalid"));
+        QVERIFY(service.activeMounts().isEmpty());
+    }
+
     // Every navigation runs through isRclonePath(), and the whole cloud path
     // handling -- skipped previews, skipped git status, faked metadata --
     // hangs off it. Getting the boundaries wrong either mounts on ordinary

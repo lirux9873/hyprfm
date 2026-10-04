@@ -1,6 +1,19 @@
 cmake_minimum_required(VERSION 3.20)
 project(hyprfm VERSION 0.6.1 LANGUAGES CXX)
 
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+    message(FATAL_ERROR "This source tree targets FreeBSD. Configure and build on FreeBSD.")
+endif()
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "Installation prefix" FORCE)
+endif()
+include(GNUInstallDirs)
+foreach(required_file src/qml/Quill/Theme.qml src/qml/icons/IconCheck.qml)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${required_file}")
+        message(FATAL_ERROR "Missing QML submodules. Run: git submodule update --init --recursive")
+    endif()
+endforeach()
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0 gio-unix-2.0)
 
@@ -15,17 +28,11 @@ find_package(KF6WindowSystem QUIET)
 add_subdirectory(src)
 
 # Install themes
-install(DIRECTORY themes/ DESTINATION share/hyprfm/themes FILES_MATCHING PATTERN "*.toml")
+install(DIRECTORY themes/ DESTINATION ${CMAKE_INSTALL_DATADIR}/hyprfm/themes FILES_MATCHING PATTERN "*.toml")
 
-# Install the generated HyprFM QML module: qmldir + qml/ tree + qmltypes.
-# The qmldir keeps Qt's `prefer :/HyprFM/`, so at runtime the module resolves
-# to the qmlcachegen-compiled qrc payload and nothing is recompiled on launch
-# (a random AppImage mount path defeats the on-disk .qmlc cache every start).
-# The on-disk tree is only the fallback main.cpp uses when the qrc load fails,
-# as it did with Qt 6.7.3 NO_CACHEGEN in v0.4.14 ("SettingsPanel is not a
-# type"); release builds force HYPRFM_ENABLE_QML_CACHEGEN=ON for that reason.
+# Install the QML fallback alongside the compiled resources.
 install(DIRECTORY ${CMAKE_BINARY_DIR}/src/HyprFM/
-    DESTINATION share/hyprfm/HyprFM
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/hyprfm/HyprFM
     FILES_MATCHING
         PATTERN "*.qml"
         PATTERN "qmldir"
@@ -38,3 +45,8 @@ if(BUILD_TESTS)
     find_package(Qt6 REQUIRED COMPONENTS Test)
     add_subdirectory(tests)
 endif()
+
+install(FILES README.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
+install(DIRECTORY docs/ DESTINATION ${CMAKE_INSTALL_DOCDIR}/docs
+    FILES_MATCHING PATTERN "*.md" PATTERN "*.png" PATTERN "*.gif")
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/hyprfm)

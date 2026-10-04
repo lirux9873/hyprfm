@@ -1,3 +1,4 @@
+#include <QStorageInfo>
 #include <QTest>
 #include <QDir>
 #include <QFile>
@@ -24,29 +25,14 @@ private slots:
         if (QStandardPaths::findExecutable("gio").isEmpty())
             QSKIP("gio not found in PATH");
 
-        const QString mediaRoot = "/run/media/" + qEnvironmentVariable("USER");
-        QDir mediaDir(mediaRoot);
-        if (!mediaDir.exists())
-            QSKIP("/run/media/$USER does not exist");
-
-        const QStringList entries = mediaDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-        if (entries.isEmpty())
-            QSKIP("No mounted volumes found under /run/media/$USER");
-
-        // Find the first writable mounted volume; skip if none. The first
-        // entry under /run/media is often a read-only / OS-managed mount
-        // (e.g. an internal partition automounted by udisks), so we can't
-        // assume it's writable.
-        QString mountPath;
-        for (const QString &entry : entries) {
-            const QString candidate = mediaDir.filePath(entry);
-            if (QFileInfo(candidate).isWritable()) {
-                mountPath = candidate;
-                break;
-            }
-        }
+        const QString mountPath = qEnvironmentVariable("HYPRFM_TEST_MOUNT");
         if (mountPath.isEmpty())
-            QSKIP("No writable mounted volume found under /run/media/$USER");
+            QSKIP("Set HYPRFM_TEST_MOUNT to a writable scratch filesystem mount point");
+        const QStorageInfo volume(mountPath);
+        QVERIFY(volume.isValid() && volume.isReady());
+        QCOMPARE(QDir::cleanPath(volume.rootPath()), QDir::cleanPath(mountPath));
+        QVERIFY(QFileInfo(mountPath).isWritable());
+        QVERIFY(mountPath != QStringLiteral("/"));
 
         const QString testDirPath = mountPath + "/hyprfm-undo-test-" + QUuid::createUuid().toString(QUuid::WithoutBraces);
         if (!QDir().mkpath(testDirPath))

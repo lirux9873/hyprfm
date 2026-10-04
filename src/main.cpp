@@ -65,9 +65,6 @@
 #include <QUrl>
 #include <dlfcn.h>
 #include <thread>
-#ifdef __GLIBC__
-#include <malloc.h>
-#endif
 #include <signal.h>
 #include <QCryptographicHash>
 #include <QThreadPool>
@@ -77,6 +74,12 @@
 Q_IMPORT_QML_PLUGIN(QuillPlugin)
 
 namespace {
+
+void releaseUnusedAllocatorPages()
+{
+    // TODO(FBSD-05): optional FreeBSD allocator purge after closing a window.
+    // Qt garbage collection still runs; leave page reclamation to the allocator.
+}
 
 // Renderer choice: Vulkan when the machine has a hardware Vulkan device,
 // OpenGL otherwise. On Mesa the OpenGL driver maps libLLVM for its shader
@@ -404,11 +407,11 @@ struct AppWindow : public QObject
 
 // Printed by --help. Qt's QCommandLineParser would need a constructed
 // QCoreApplication, and both --help and --version have to answer before the
-// Wayland check below — `hyprfm --help` over SSH should still work.
+// GUI setup below — `hyprfm --help` over SSH should still work.
 void printUsage()
 {
     printf(
-        "HyprFM %s — a Qt6/QML file manager for Wayland\n"
+        "HyprFM %s — a Qt6/QML file manager for FreeBSD\n"
         "\n"
         "Usage:\n"
         "  hyprfm [options] [path]\n"
@@ -569,7 +572,6 @@ error   = "#f38ba8"  # errors, destructive actions
 
 } // namespace
 
-
 // org.freedesktop.appearance color-scheme: 0 no preference, 1 dark, 2 light.
 // Published by xdg-desktop-portal, which is what desktop shells write to when
 // the user flips light/dark, so it is available even when Qt cannot see it.
@@ -633,30 +635,7 @@ int main(int argc, char *argv[])
     fmt.setSamples(qMax(0, qEnvironmentVariableIntValue("HYPRFM_MSAA")));
     QSurfaceFormat::setDefaultFormat(fmt);
 
-    // HyprFM is a Wayland-only application (wl-copy clipboard, Hyprland
-    // integration, KWin blur effects). Detect a non-Wayland session before
-    // Qt tries to load the wayland QPA plugin so users see an actionable
-    // message instead of the cryptic "Failed to create wl_display" error.
-    if (qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY")) {
-        const QByteArray sessionType = qgetenv("XDG_SESSION_TYPE");
-        const char *session = sessionType.isEmpty() ? "unknown" : sessionType.constData();
-        fprintf(stderr,
-                "\n"
-                "HyprFM: no Wayland display available (XDG_SESSION_TYPE=%s).\n"
-                "\n"
-                "HyprFM only supports Wayland sessions. Your current session\n"
-                "appears to be X11 or does not expose $WAYLAND_DISPLAY.\n"
-                "\n"
-                "To run HyprFM:\n"
-                "  * Log out and pick a Wayland session at the login screen\n"
-                "    (e.g. \"Ubuntu on Wayland\", GNOME on Wayland, Hyprland, KDE\n"
-                "    Plasma Wayland).\n"
-                "  * If running via Flatpak, also grant Wayland socket access:\n"
-                "      flatpak override --user --socket=wayland io.github.soyeb_jim285.HyprFM\n"
-                "\n",
-                session);
-        return 1;
-    }
+    // Let Qt select X11 or Wayland; explicit QT_QPA_PLATFORM is respected.
 
     // Extract an optional path argument. We skip flag-style args so Qt's
     // own options (e.g. `-style`, `-qmljsdebugger`) don't get mistaken
@@ -691,7 +670,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     app.setApplicationName("HyprFM");
     app.setOrganizationName("hyprfm");
-    app.setDesktopFileName("hyprfm");
+    app.setDesktopFileName("io.github.soyeb_jim285.HyprFM");
 
     // Startup timing: opt-in via HYPRFM_TIMING=1 so normal runs stay quiet.
     // Prints milliseconds from QGuiApplication construction at each phase.
@@ -806,15 +785,8 @@ int main(int argc, char *argv[])
         return font;
     };
 
-    // $XDG_CONFIG_HOME/hyprfm (~/.config/hyprfm when unset). Not under
-    // Flatpak: the runtime points XDG_CONFIG_HOME at a per-app directory, and
-    // Flatpak installs have always kept their config in the real
-    // ~/.config/hyprfm, so following it there would lose it.
-    const bool inFlatpak = QFile::exists(QStringLiteral("/.flatpak-info"));
-    const QString configDir = (inFlatpak
-            ? QDir::homePath() + QStringLiteral("/.config")
-            : QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation))
-        + QStringLiteral("/hyprfm");
+    const QString configDir = QStandardPaths::writableLocation(
+        QStandardPaths::GenericConfigLocation) + QStringLiteral("/hyprfm");
     QDir().mkpath(configDir);
     const QString configPath = configDir + "/config.toml";
 
@@ -870,7 +842,7 @@ int main(int argc, char *argv[])
     // bundled theme that matches the desktop rather than always landing on the
     // dark one. Qt's own colorScheme() is not enough here -- it reports Unknown
     // under platform themes that do not forward the portal setting (qt6ct,
-    // Kvantum), which is a common Hyprland setup -- so ask the portal directly
+    // Kvantum), which is a common desktop setup -- so ask the portal directly
     // and fall back to Qt, then to dark.
     const QString systemDefaultTheme = desktopPrefersLight()
         ? QStringLiteral("catppuccin-latte")
@@ -1031,7 +1003,7 @@ int main(int argc, char *argv[])
             return;
 
 #ifdef HYPRFM_HAS_KWINDOWSYSTEM
-        // KWin blur only shows through translucent content; Hyprland keeps
+        // KWin blur only shows through translucent content; other compositors keep
         // using compositor rules against the same transparent window surface.
         const bool blurRequested = config->transparencyEnabled();
         const bool blurAvailable = KWindowEffects::isEffectAvailable(KWindowEffects::BlurBehind);
@@ -1160,17 +1132,11 @@ int main(int argc, char *argv[])
         windows.append(w);
         QObject::connect(w, &QObject::destroyed, &app, [&windows, &sessionWindow, &lastActiveWindow, w, &app, &engine]() {
             windows.removeAll(w);
-            // A closed window frees a whole window's worth of objects at once,
-            // but the JS heap only shrinks on the engine's next collection and
-            // glibc keeps what is freed: each open/close cycle left ~13 MB
-            // behind, 112 -> 202 MB after eight. Collecting and trimming once
-            // things settle keeps it at ~1.5 MB (the collection costs ~30 ms,
-            // so not during the close itself).
+            // Collect the closed window's QML objects after the close has
+            // settled. Allocator-specific page reclamation is a placeholder.
             QTimer::singleShot(1000, &app, [&engine]() {
                 engine.collectGarbage();
-#ifdef __GLIBC__
-                malloc_trim(0);
-#endif
+                releaseUnusedAllocatorPages();
             });
             if (sessionWindow == w) sessionWindow = nullptr;
             if (lastActiveWindow == w) lastActiveWindow = nullptr;

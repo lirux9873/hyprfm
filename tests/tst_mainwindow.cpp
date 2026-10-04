@@ -542,7 +542,7 @@ private slots:
     // success never made it back.
     void testCorrectPasswordExtractsAndDismissesThePrompt()
     {
-        if (QStandardPaths::findExecutable(QStringLiteral("7z")).isEmpty())
+        if (QStandardPaths::findExecutable(QStringLiteral("7zz")).isEmpty())
             QSKIP("7z not found in PATH");
 
         App app;
@@ -556,7 +556,7 @@ private slots:
         f.close();
         QProcess zip;
         zip.setWorkingDirectory(dir);
-        zip.start("7z", {"a", "-ptest", "-mhe=on", dir + "/locked.7z", "payload"});
+        zip.start("7zz", {"a", "-ptest", "-mhe=on", dir + "/locked.7z", "payload"});
         QVERIFY(zip.waitForFinished(20000));
         QCOMPARE(zip.exitCode(), 0);
 

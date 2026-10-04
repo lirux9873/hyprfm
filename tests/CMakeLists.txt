@@ -1,5 +1,12 @@
 # Tests will be added as backend classes are implemented
 
+add_executable(tst_freebsdplatform tst_freebsdplatform.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/runtimefeaturesservice.cpp
+    ${CMAKE_SOURCE_DIR}/src/services/dependencychecker.cpp)
+target_include_directories(tst_freebsdplatform PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_link_libraries(tst_freebsdplatform PRIVATE Qt6::Test Qt6::Core)
+add_test(NAME tst_freebsdplatform COMMAND tst_freebsdplatform)
+
 add_executable(tst_configmanager tst_configmanager.cpp
     ${CMAKE_SOURCE_DIR}/src/services/configmanager.cpp
 )
@@ -315,14 +322,15 @@ set_tests_properties(tst_giotransferworker PROPERTIES
 
 # Multi-window / single-instance arbitration lives in main(), so it is covered
 # by driving the real binary. Skips itself (exit 77) without a Wayland session.
-add_test(NAME tst_instance_launch
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tst_instance_launch.sh $<TARGET_FILE:hyprfm>
-)
-set_tests_properties(tst_instance_launch PROPERTIES
-    SKIP_RETURN_CODE 77
-    RUN_SERIAL TRUE
-    TIMEOUT 120
-)
+find_program(BASH_EXECUTABLE bash)
+if(BASH_EXECUTABLE)
+    add_test(NAME tst_instance_launch
+        COMMAND ${BASH_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tst_instance_launch.sh $<TARGET_FILE:hyprfm>)
+    set_tests_properties(tst_instance_launch PROPERTIES
+        SKIP_RETURN_CODE 77 RUN_SERIAL TRUE TIMEOUT 120)
+else()
+    message(STATUS "bash missing: instance launch test is not registered")
+endif()
 
 # --help / --version answer before any Qt GUI setup, so unlike the launch test
 # these run anywhere, including headless CI.

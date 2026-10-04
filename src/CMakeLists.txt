@@ -67,11 +67,7 @@ endif()
 
 set_source_files_properties(qml/theme/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
-# Compiling QML ahead of time costs build time, so development builds skip it and
-# rely on Qt's on-disk cache instead. A packaged build cannot: that cache is keyed
-# by the source file's path and mtime, so it is empty on the first launch after
-# every install or update, and a Flatpak whose runtime remounts /app pays ~400 ms
-# to recompile 86 QML files. Release-type builds therefore default to ON.
+# Compile QML into resources for predictable installed startup.
 set(hyprfm_cachegen_default OFF)
 if(CMAKE_BUILD_TYPE MATCHES "^(Release|RelWithDebInfo|MinSizeRel)$")
     set(hyprfm_cachegen_default ON)
@@ -181,12 +177,7 @@ list(APPEND hyprfm_qml_module_args
 
 qt_add_qml_module(hyprfm ${hyprfm_qml_module_args})
 
-# Quill (the src/qml/Quill submodule) is compiled in as its own QML module,
-# like HyprFM, rather than found on disk through import paths. From disk it
-# was parsed at runtime, cached by path (so an AppImage, mounted somewhere new
-# each launch, recompiled it every time), and resolved through import paths
-# that included the build tree, which an installed binary preferred over its
-# own install whenever that tree still existed.
+# Compile QML into resources for predictable installed startup.
 qt_add_library(quill STATIC)
 set_source_files_properties(qml/Quill/Theme.qml qml/Quill/components/Format.qml
     PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -253,7 +244,7 @@ target_include_directories(hyprfm PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 )
 
-set(HYPRFM_DATA_DIR "${CMAKE_SOURCE_DIR}" CACHE STRING "Runtime data directory for themes and QML")
+set(HYPRFM_DATA_DIR "${CMAKE_INSTALL_FULL_DATADIR}/hyprfm" CACHE PATH "Runtime data directory for themes and QML")
 
 target_compile_definitions(hyprfm PRIVATE
     HYPRFM_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
@@ -265,10 +256,10 @@ if(KF6WindowSystem_FOUND)
     target_compile_definitions(hyprfm PRIVATE HYPRFM_HAS_KWINDOWSYSTEM=1)
 endif()
 
-install(TARGETS hyprfm DESTINATION bin)
+install(TARGETS hyprfm DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES "${CMAKE_SOURCE_DIR}/dist/io.github.soyeb_jim285.HyprFM.desktop"
-    DESTINATION share/applications)
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES "${CMAKE_SOURCE_DIR}/dist/io.github.soyeb_jim285.HyprFM.svg"
-    DESTINATION share/icons/hicolor/scalable/apps)
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
 install(FILES "${CMAKE_SOURCE_DIR}/dist/io.github.soyeb_jim285.HyprFM.metainfo.xml"
-    DESTINATION share/metainfo)
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)

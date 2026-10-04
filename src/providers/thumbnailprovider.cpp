@@ -33,26 +33,11 @@ static QString sourcePathFromId(QString id)
     return id;
 }
 
-static bool runningInFlatpak()
-{
-    static const bool inSandbox = QFile::exists(QStringLiteral("/.flatpak-info"));
-    return inSandbox;
-}
-
 static QByteArray readTrashUriData(const QString &uri)
 {
     QProcess proc;
     const QString uriArg = QUrl(uri).toString(QUrl::FullyEncoded);
-    // Inside Flatpak the sandboxed gio sees its own (empty) trash; route
-    // through `flatpak-spawn --host gio cat` so we read from the host's
-    // real trash where the file actually lives.
-    if (runningInFlatpak()) {
-        proc.start(QStringLiteral("flatpak-spawn"),
-                   {QStringLiteral("--host"), QStringLiteral("gio"),
-                    QStringLiteral("cat"), uriArg});
-    } else {
-        proc.start(QStringLiteral("gio"), {QStringLiteral("cat"), uriArg});
-    }
+    proc.start(QStringLiteral("gio"), {QStringLiteral("cat"), uriArg});
     // ponytail: 64 MB cap, same loop as PreviewService::readBoundedOutput;
     // share it if a third copy ever appears.
     constexpr qint64 kMaxBytes = 64 * 1024 * 1024;

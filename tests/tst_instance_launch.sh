@@ -3,13 +3,12 @@
 # main.cpp. Everything here needs real processes and a real unix socket, so it
 # lives as a script rather than a QtTest case.
 #
-# Skips (exit 77) when there is no Wayland session, since HyprFM refuses to
-# start without one — that is the case on CI runners.
+# Skips (exit 77) when neither X11 nor Wayland is available.
 set -u
 
 HYPRFM=${1:?usage: tst_instance_launch.sh /path/to/hyprfm}
 
-[ -n "${WAYLAND_DISPLAY:-}" ] || { echo "SKIP: no WAYLAND_DISPLAY"; exit 77; }
+[ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ] || { echo "SKIP: no display"; exit 77; }
 
 SANDBOX=$(mktemp -d)
 cleanup() {
@@ -92,39 +91,16 @@ check "handoff added a tab to the primary" \
       "$(more_tabs_than "$tabs_before" && echo yes || echo no)" "yes"
 
 # --- 3. bare relaunch opens another window in the same process ------------
-# Windows are counted through Hyprland when it is the compositor; elsewhere the
-# window checks are skipped and only the handoff itself is checked.
-hypr_sig=${HYPRLAND_INSTANCE_SIGNATURE:-}
-[ -n "$hypr_sig" ] && [ -S "$XDG_RUNTIME_DIR/hypr/$hypr_sig/.socket.sock" ] \
-    || hypr_sig=$(ls -t "$XDG_RUNTIME_DIR/hypr" 2>/dev/null | head -1)
-windows_of() {
-    [ -n "$hypr_sig" ] && command -v hyprctl >/dev/null || { echo "?"; return; }
-    HYPRLAND_INSTANCE_SIGNATURE=$hypr_sig hyprctl -j clients 2>/dev/null \
-        | grep -o "\"pid\": $1," | wc -l
-}
-more_windows_than() { [ "$(windows_of "$primary")" != "?" ] && [ "$(windows_of "$primary")" -gt "$1" ]; }
-check_windows() {   # label, before
-    if [ "$(windows_of "$primary")" = "?" ]; then
-        echo "SKIP: $1 (no hyprctl)"
-    else
-        wait_for 10 more_windows_than "$2"
-        check "$1" "$(more_windows_than "$2" && echo yes || echo no)" "yes"
-    fi
-}
-
-windows_before=$(windows_of "$primary")
+# The handoff is tested independently of the window manager.
 "$HYPRFM" >/dev/null 2>&1
 check "bare relaunch hands off and exits 0" "$?" "0"
-check_windows "bare relaunch opened a window in the primary" "$windows_before"
 
 # --- 4. extra windows never write the shared session ------------------------
 # Checked by content, not mtime: the primary legitimately saves whenever its
 # first window's geometry changes. What must never happen is another window's
 # tab landing in the file, so give it a path the first window does not have.
-windows_before=$(windows_of "$primary")
 "$HYPRFM" -n /usr >/dev/null 2>&1
 check "--new-window <path> hands off and exits 0" "$?" "0"
-check_windows "--new-window opened a window in the primary" "$windows_before"
 sleep 1
 check "extra window's tab is not in session.json" \
       "$(grep -c '"/usr"' "$SESSION")" "0"

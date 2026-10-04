@@ -7,7 +7,7 @@
 #include <QVariantMap>
 
 // Aggregates every runtime tool and compile-time feature HyprFM can use, with
-// human-readable purpose strings and per-distro install commands. Drives the
+// human-readable purpose strings and FreeBSD install commands. Drives the
 // MissingDependenciesDialog. Separate from RuntimeFeaturesService (which owns
 // simple Q_PROPERTY feature flags consumed throughout QML) — this service is
 // the "list it all for the dialog" view.
@@ -23,9 +23,9 @@ class DependencyChecker : public QObject
 
 public:
     enum class Kind {
-        Tool,      // External binary on PATH (or in host /usr/*bin under Flatpak)
+        Tool,      // External binary on PATH
         Feature,   // Compile-time feature (#ifdef baked into the build)
-        Service,   // DBus service (e.g. UDisks2)
+        Service,   // DBus service
     };
 
     struct Dependency {
@@ -59,11 +59,7 @@ signals:
 private:
     void detectDistro();
     void populate();
-    static bool hasAnyFile(const QStringList &paths);
     static bool hasExecutable(const QString &name);
-    static bool hasHostExecutable(const QString &name);
-    static bool inFlatpakSandbox();
-    static bool udisks2Reachable();
 
     QVariantMap toVariant(const Dependency &dep) const;
 

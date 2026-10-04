@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=HyprFM
 GenericName=File Manager
-Comment=A lightweight Qt6/QML file manager for Hyprland
+Comment=A lightweight Qt6/QML file manager for FreeBSD
 Exec=hyprfm %F
 Icon=io.github.soyeb_jim285.HyprFM
 Terminal=false

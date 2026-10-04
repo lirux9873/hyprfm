@@ -5,14 +5,7 @@
 #include <QString>
 #include <QStringList>
 
-// Reading the trash straight off disk per the XDG Trash spec, instead of
-// asking gvfs for trash:// listings. gvfs is a session daemon, so packaging
-// that can't ship one (Nix without services.gvfs.enable, AppImage, Flatpak)
-// used to get an empty Trash view even though the files were right there.
-// Moving files *into* the trash still goes through g_file_trash(), which is
-// plain GLib and needs no gvfs at all.
-//
-// Remote trash (sftp://, smb://) is out of scope: those really do need gvfs.
+// Read the XDG trash directly without a session daemon.
 namespace XdgTrash {
 
 struct Entry {

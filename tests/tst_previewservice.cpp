@@ -23,8 +23,7 @@ private:
 
     static bool batAvailable()
     {
-        return !QStandardPaths::findExecutable("bat").isEmpty()
-            || !QStandardPaths::findExecutable("batcat").isEmpty();
+        return !QStandardPaths::findExecutable("bat").isEmpty();
     }
 
     static bool md2htmlAvailable()

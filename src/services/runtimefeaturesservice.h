@@ -7,8 +7,7 @@ class RuntimeFeaturesService : public QObject
     Q_OBJECT
     Q_PROPERTY(bool ffmpegAvailable READ ffmpegAvailable CONSTANT)
     Q_PROPERTY(bool batAvailable READ batAvailable CONSTANT)
-    Q_PROPERTY(bool udisksctlAvailable READ udisksctlAvailable CONSTANT)
-    Q_PROPERTY(bool wlClipboardAvailable READ wlClipboardAvailable CONSTANT)
+    Q_PROPERTY(bool deviceMountAvailable READ deviceMountAvailable CONSTANT)
     Q_PROPERTY(bool gitAvailable READ gitAvailable CONSTANT)
     Q_PROPERTY(bool useIntegratedWindowControls READ useIntegratedWindowControls CONSTANT)
 
@@ -17,8 +16,7 @@ public:
 
     bool ffmpegAvailable() const;
     bool batAvailable() const;
-    bool udisksctlAvailable() const;
-    bool wlClipboardAvailable() const;
+    bool deviceMountAvailable() const;
     bool gitAvailable() const;
     bool useIntegratedWindowControls() const;
 

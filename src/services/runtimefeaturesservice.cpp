@@ -1,29 +1,8 @@
 #include "services/runtimefeaturesservice.h"
 
-#include <QDBusConnection>
-#include <QDBusConnectionInterface>
-#include <QFile>
-#include <QProcess>
 #include <QStandardPaths>
 
 namespace {
-
-bool runtimeFeaturesRunningInFlatpak()
-{
-    static const bool inSandbox = QFile::exists(QStringLiteral("/.flatpak-info"));
-    return inSandbox;
-}
-
-bool runtimeFeaturesHostToolAvailable(const QString &program)
-{
-    if (QStandardPaths::findExecutable(QStringLiteral("flatpak-spawn")).isEmpty())
-        return false;
-
-    QProcess proc;
-    proc.start(QStringLiteral("flatpak-spawn"),
-               {QStringLiteral("--host"), program, QStringLiteral("--version")});
-    return proc.waitForFinished(2000) && proc.exitCode() == 0;
-}
 
 bool isIntegratedWindowControlsDesktop()
 {
@@ -32,8 +11,6 @@ bool isIntegratedWindowControlsDesktop()
         + qEnvironmentVariable("DESKTOP_SESSION")).toLower();
 
     return desktopId.contains(QStringLiteral("gnome"))
-        || desktopId.contains(QStringLiteral("ubuntu"))
-        || desktopId.contains(QStringLiteral("unity"))
         || desktopId.contains(QStringLiteral("plasma"))
         || desktopId.contains(QStringLiteral("kde"));
 }
@@ -52,31 +29,18 @@ bool RuntimeFeaturesService::ffmpegAvailable() const
 
 bool RuntimeFeaturesService::batAvailable() const
 {
-    return hasExecutable(QStringLiteral("bat")) || hasExecutable(QStringLiteral("batcat"));
+    return hasExecutable(QStringLiteral("bat"));
 }
 
-bool RuntimeFeaturesService::udisksctlAvailable() const
+bool RuntimeFeaturesService::deviceMountAvailable() const
 {
-    // Mount/unmount goes over DBus directly (DeviceModel calls
-    // org.freedesktop.UDisks2.Filesystem.Mount/Unmount), so what matters
-    // is whether the UDisks2 service is reachable on the system bus, not
-    // whether the udisksctl CLI is on PATH.
-    auto *iface = QDBusConnection::systemBus().interface();
-    if (!iface)
-        return false;
-    return iface->isServiceRegistered(QStringLiteral("org.freedesktop.UDisks2"));
-}
-
-bool RuntimeFeaturesService::wlClipboardAvailable() const
-{
-    return hasExecutable(QStringLiteral("wl-copy")) && hasExecutable(QStringLiteral("wl-paste"));
+    // TODO(FBSD-01): authorized device mount/unmount backend.
+    return false;
 }
 
 bool RuntimeFeaturesService::gitAvailable() const
 {
-    return hasExecutable(QStringLiteral("git"))
-        || (runtimeFeaturesRunningInFlatpak()
-            && runtimeFeaturesHostToolAvailable(QStringLiteral("git")));
+    return hasExecutable(QStringLiteral("git"));
 }
 
 bool RuntimeFeaturesService::useIntegratedWindowControls() const
@@ -89,15 +53,15 @@ QString RuntimeFeaturesService::installHint(const QString &feature) const
     if (feature == QStringLiteral("videoPreview"))
         return QStringLiteral("Install ffmpeg to enable video poster previews.");
     if (feature == QStringLiteral("pdfPreview"))
-        return QStringLiteral("Install poppler-qt6 and rebuild HyprFM to enable PDF previews.");
+        return QStringLiteral("Run pkg install poppler-utils as root to enable PDF previews.");
     if (feature == QStringLiteral("remoteAccess"))
         return QStringLiteral("Install gvfs to browse remote filesystems through Connect to Server.");
     if (feature == QStringLiteral("smbRemoteAccess"))
-        return QStringLiteral("Install gvfs-smb to browse SMB/CIFS shares.");
+        return QStringLiteral("Install gvfs with its SMB backend to browse SMB/CIFS shares.");
     if (feature == QStringLiteral("deviceMount"))
-        return QStringLiteral("Install udisks2 to mount and unmount devices from the sidebar.");
+        return QStringLiteral("Device mount/unmount is not implemented on FreeBSD; mount the filesystem outside HyprFM.");
     if (feature == QStringLiteral("clipboardImage"))
-        return QStringLiteral("Install wl-clipboard to paste images and copy paths through Wayland.");
+        return QStringLiteral("Clipboard images require an active desktop clipboard offer.");
     if (feature == QStringLiteral("textHighlight"))
         return QStringLiteral("Install bat for syntax-highlighted text previews.");
     return {};

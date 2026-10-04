@@ -27,7 +27,7 @@ echo "building $root"
 # --- Pictures: png, jpg (with EXIF), webp, gif, svg -------------------------
 echo "pictures"
 if have magick; then
-	# ImageMagick has no default font on a bare Arch install — resolve one.
+	# ImageMagick has no default font on a minimal desktop install — resolve one.
 	demofont="$(fc-match -f '%{file}' sans-serif 2>/dev/null || true)"
 	label_img() { # size gradient label output
 		if [ -n "$demofont" ]; then
@@ -77,7 +77,7 @@ if have exiftool && [ -f "$root/Pictures/panorama.jpg" ]; then
 		-Artist="HyprFM demo" -ImageDescription="Rooftop at golden hour" \
 		"$root/Pictures/panorama.jpg"
 else
-	skip "EXIF metadata" perl-image-exiftool
+	skip "EXIF metadata" p5-Image-ExifTool
 fi
 
 # --- Videos and audio -------------------------------------------------------
@@ -178,8 +178,8 @@ EOF
 
 {
 	echo "2025-06-14 18:31:02 INFO  hyprfm: session restored, 3 tabs"
-	echo "2025-06-14 18:31:02 DEBUG previewservice: bat found at /usr/bin/bat"
-	echo "2025-06-14 18:31:07 WARN  udisks2: no polkit agent on the session bus"
+	echo "2025-06-14 18:31:02 DEBUG previewservice: bat found at /usr/local/bin/bat"
+	echo "2025-06-14 18:31:07 WARN  devices: mount backend not implemented"
 	echo "2025-06-14 18:31:19 INFO  fileops: copy started, 214 files, 1.8 GiB"
 	echo "2025-06-14 18:31:44 ERROR gio: mount smb://nas/media failed: timeout"
 } > "$root/Documents/hyprfm.log"
@@ -303,7 +303,7 @@ cat > "$root/Code/package.json" <<'EOF'
     "build": "cmake --build build --parallel",
     "test": "ctest --test-dir build"
   },
-  "keywords": ["wayland", "hyprland", "file-manager"]
+  "keywords": ["wayland", "freebsd", "file-manager"]
 }
 EOF
 

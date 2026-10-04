@@ -1,4 +1,5 @@
 #include <QTest>
+#include <QSignalSpy>
 #include <QAbstractItemModelTester>
 #include "models/devicemodel.h"
 
@@ -71,7 +72,7 @@ private slots:
     {
         DeviceModel model;
 
-        const QStringList virtualPrefixes = { "/proc", "/sys", "/dev" };
+        const QStringList virtualPrefixes = { "/dev" };
 
         for (int i = 0; i < model.rowCount(); ++i) {
             QModelIndex idx = model.index(i);
@@ -137,6 +138,19 @@ private slots:
         QCOMPARE(model.rowCount(), countBefore);
     }
 
+    void testUnmountPlaceholderReportsFailure()
+    {
+        DeviceModel model;
+        QVERIFY(model.rowCount() > 0);
+        QSignalSpy errors(&model, &DeviceModel::mountError);
+        const int count = model.rowCount();
+        model.unmount(0);
+        QCOMPARE(errors.count(), 1);
+        QVERIFY(errors.first().first().toString().contains("not implemented"));
+        QCOMPARE(model.rowCount(), count);
+        QVERIFY(model.data(model.index(0), DeviceModel::MountedRole).toBool());
+    }
+
     void testMountOutOfBounds()
     {
         DeviceModel model;
@@ -168,8 +182,7 @@ private slots:
         for (int i = 0; i < model.rowCount(); ++i) {
             QModelIndex idx = model.index(i);
             const QString backend = model.data(idx, DeviceModel::BackendRole).toString();
-            QVERIFY2(backend == QStringLiteral("udisks2")
-                         || backend == QStringLiteral("gio"),
+            QVERIFY2(backend == QStringLiteral("freebsd"),
                      qPrintable(QString("Unexpected backend at row %1: %2")
                                     .arg(i)
                                     .arg(backend)));

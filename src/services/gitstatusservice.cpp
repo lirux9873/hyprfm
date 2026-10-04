@@ -8,24 +8,9 @@
 
 namespace {
 
-bool gitStatusRunningInFlatpak()
-{
-    static const bool inSandbox = QFile::exists(QStringLiteral("/.flatpak-info"));
-    return inSandbox;
-}
-
 bool gitStatusHostToolAvailable(const QString &program)
 {
-    if (!gitStatusRunningInFlatpak())
-        return !QStandardPaths::findExecutable(program).isEmpty();
-
-    if (QStandardPaths::findExecutable(QStringLiteral("flatpak-spawn")).isEmpty())
-        return false;
-
-    QProcess proc;
-    proc.start(QStringLiteral("flatpak-spawn"),
-               {QStringLiteral("--host"), program, QStringLiteral("--version")});
-    return proc.waitForFinished(2000) && proc.exitCode() == 0;
+    return !QStandardPaths::findExecutable(program).isEmpty();
 }
 
 void startGitTool(QProcess *process, const QStringList &arguments)
@@ -38,13 +23,6 @@ void startGitTool(QProcess *process, const QStringList &arguments)
         QStringLiteral("-c"), QStringLiteral("core.hooksPath=/dev/null")
     };
     safeArguments.append(arguments);
-
-    if (gitStatusRunningInFlatpak()) {
-        QStringList hostArgs;
-        hostArgs << QStringLiteral("--host") << QStringLiteral("git") << safeArguments;
-        process->start(QStringLiteral("flatpak-spawn"), hostArgs);
-        return;
-    }
 
     process->start(QStringLiteral("git"), safeArguments);
 }

@@ -5,6 +5,9 @@
 #include <QDir>
 #include <QPointer>
 #include <QStandardPaths>
+#include <QStorageInfo>
+#include <QFileInfo>
+#include <QRegularExpression>
 #include <QTimer>
 #include <QDebug>
 #include <sys/stat.h>
@@ -21,16 +24,13 @@ RcloneService::RcloneService(QObject *parent)
 
 RcloneService::~RcloneService()
 {
-    // unmountRemote() drives fusermount through the event loop, and by the
-    // time we are destroyed there is no event loop left to run it: the
-    // unmount would never happen and ~QProcess would SIGKILL rclone with the
-    // FUSE mount still attached, leaving a dead mount point behind. Detach
-    // fusermount so it outlives us, then ask rclone to go away.
+    // Best-effort cleanup of mounts owned by this process at shutdown.
     const QStringList remotes = m_processes.keys();
     for (const QString &remote : remotes) {
         const QString mountPath = getMountPath(remote);
-        if (!QProcess::startDetached(QStringLiteral("fusermount"), {QStringLiteral("-u"), mountPath}))
-            QProcess::startDetached(QStringLiteral("fusermount3"), {QStringLiteral("-u"), mountPath});
+        QProcess cleanup;
+        cleanup.start(QStringLiteral("/sbin/umount"), {mountPath});
+        cleanup.waitForFinished(3000);
 
         QProcess *proc = m_processes.value(remote);
         if (proc && proc->state() != QProcess::NotRunning)
@@ -105,6 +105,12 @@ QString RcloneService::getMountPath(const QString &remoteName) const
 
 void RcloneService::mountRemote(const QString &remoteName)
 {
+    // A remote name must never escape the private mounts directory.
+    static const QRegularExpression validName(QStringLiteral("^[A-Za-z0-9_][A-Za-z0-9_. -]*$"));
+    if (!validName.match(remoteName).hasMatch()) {
+        emit mountFinished(remoteName, false, tr("Invalid cloud remote name."));
+        return;
+    }
     if (!m_rcloneAvailable) {
         emit mountFinished(remoteName, false, QStringLiteral("rclone executable not found"));
         return;
@@ -120,28 +126,29 @@ void RcloneService::mountRemote(const QString &remoteName)
     }
 
     const QString mountPath = getMountPath(remoteName);
-    QDir().mkpath(mountPath);
-
-    // Clear any stale mount left behind by an earlier run before starting.
-    releaseMountPoint(mountPath, [this, remoteName, mountPath]() {
-        startRcloneMountProcess(remoteName, mountPath);
-    });
-}
-
-// fusermount(1) belongs to libfuse2 and fusermount3(1) to libfuse3; a distro
-// ships one, the other, or neither. Try both and continue either way: a
-// cleanup that cannot run is no reason to strand the caller, and a missing
-// binary emits errorOccurred rather than finished, so a chain hung off
-// finished alone would simply stop here and never call anybody back.
-void RcloneService::releaseMountPoint(const QString &mountPath, const std::function<void()> &then)
-{
-    runUnmountTool(QStringLiteral("fusermount"), mountPath, [this, mountPath, then](bool ok) {
-        if (ok) {
-            then();
+    if (QFileInfo(m_mountsBaseDir).isSymLink() || QFileInfo(mountPath).isSymLink()
+        || !QDir().mkpath(mountPath)) {
+        emit mountFinished(remoteName, false, tr("Cannot create a safe cloud mount directory."));
+        return;
+    }
+    for (const auto &volume : QStorageInfo::mountedVolumes()) {
+        if (QDir::cleanPath(volume.rootPath()) == QDir::cleanPath(mountPath)) {
+            emit mountFinished(remoteName, false, tr("The mount point is already in use. Unmount it outside HyprFM first."));
             return;
         }
-        runUnmountTool(QStringLiteral("fusermount3"), mountPath, [then](bool) { then(); });
-    });
+    }
+    startRcloneMountProcess(remoteName, mountPath);
+}
+
+void RcloneService::releaseMountPoint(const QString &mountPath, const std::function<void(bool)> &then)
+{
+    for (const auto &volume : QStorageInfo::mountedVolumes()) {
+        if (QDir::cleanPath(volume.rootPath()) == QDir::cleanPath(mountPath)) {
+            runUnmountTool(QStringLiteral("/sbin/umount"), mountPath, then);
+            return;
+        }
+    }
+    then(true); // An unsuccessful mount attempt may have no filesystem to release.
 }
 
 void RcloneService::runUnmountTool(const QString &tool, const QString &mountPath,
@@ -162,7 +169,14 @@ void RcloneService::runUnmountTool(const QString &tool, const QString &mountPath
         settle(false);
     });
 
-    proc->start(tool, {QStringLiteral("-u"), mountPath});
+    proc->start(tool, {mountPath});
+    QTimer::singleShot(5000, proc, [proc, settle]() {
+        if (proc->state() != QProcess::NotRunning) {
+            proc->disconnect();
+            proc->kill();
+            settle(false);
+        }
+    });
 }
 
 void RcloneService::startRcloneMountProcess(const QString &remoteName, const QString &mountPath)
@@ -271,24 +285,31 @@ void RcloneService::unmountRemote(const QString &remoteName)
         return;
     }
 
-    QProcess *proc = m_processes.value(remoteName);
-    if (proc) {
-        disconnect(proc, nullptr, this, nullptr);
-        connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), proc, &QObject::deleteLater);
-        proc->terminate();
-        QTimer::singleShot(2000, proc, [proc]() {
-            if (proc->state() != QProcess::NotRunning) {
-                proc->kill();
+    // Detach the filesystem first. A busy or unauthorized mount must remain
+    // usable, and failure must not be presented to QML as successful cleanup.
+    const QPointer<QProcess> process = m_processes.value(remoteName);
+    releaseMountPoint(getMountPath(remoteName), [this, remoteName, process](bool ok) {
+        if (!ok) {
+            emit unmountFinished(remoteName, false);
+            return;
+        }
+        if (process && m_processes.value(remoteName) == process.data()) {
+            disconnect(process, nullptr, this, nullptr);
+            if (process->state() == QProcess::NotRunning) {
+                process->deleteLater();
+            } else {
+                connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                        process, &QObject::deleteLater);
+                process->terminate();
+                QTimer::singleShot(2000, process, [process]() {
+                    if (process && process->state() != QProcess::NotRunning)
+                        process->kill();
+                });
             }
-        });
-    }
-
-    m_processes.remove(remoteName);
-    m_mountSuccessEmitted.remove(remoteName);
-    emit activeMountsChanged();
-
-    // Release the FUSE mount point without blocking the UI.
-    releaseMountPoint(getMountPath(remoteName), [this, remoteName]() {
+            m_processes.remove(remoteName);
+            m_mountSuccessEmitted.remove(remoteName);
+            emit activeMountsChanged();
+        }
         emit unmountFinished(remoteName, true);
     });
 }

@@ -18,8 +18,7 @@ private slots:
     void testFdDetection()
     {
         SearchService service;
-        bool hasFd = !QStandardPaths::findExecutable("fd").isEmpty()
-                  || !QStandardPaths::findExecutable("fdfind").isEmpty();
+        bool hasFd = !QStandardPaths::findExecutable("fd").isEmpty();
         QCOMPARE(service.hasFd(), hasFd);
     }
 

@@ -33,15 +33,6 @@
 
 namespace {
 
-// True when this binary is running inside a Flatpak sandbox. Defined here
-// (rather than further down) so it's visible to trash/restore/empty
-// helpers above their use site.
-bool runningInFlatpak()
-{
-    static const bool inSandbox = QFile::exists(QStringLiteral("/.flatpak-info"));
-    return inSandbox;
-}
-
 // Total size of all regular files under a directory, used to turn raw
 // extraction output into smooth byte-based progress (7z prints no per-file
 // lines, only an in-place percentage that stalls near the end).
@@ -130,10 +121,6 @@ void killProcess(QAtomicInt *pid)
 #endif
 }
 
-// Locate a .desktop file from its desktop ID ("mpv.desktop"). Under Flatpak
-// the host's applications are only visible through /run/host, so search there
-// too — the caller strips the prefix back off before handing the path to the
-// host process.
 QString desktopEntryPath(const QString &desktopId)
 {
     if (desktopId.isEmpty())
@@ -142,12 +129,6 @@ QString desktopEntryPath(const QString &desktopId)
         return QFile::exists(desktopId) ? desktopId : QString();
 
     QStringList dirs = QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
-    if (runningInFlatpak()) {
-        for (const QString &dir : std::as_const(dirs)) {
-            if (dir.startsWith(QLatin1Char('/')))
-                dirs.append(QStringLiteral("/run/host") + dir);
-        }
-    }
 
     for (const QString &dir : std::as_const(dirs)) {
         const QString candidate = QDir(dir).filePath(desktopId);
@@ -897,8 +878,8 @@ bool archiveExtractCommand(const QString &archivePath, const QString &destinatio
         return true;
     case ArchiveKind::SevenZip:
     case ArchiveKind::Rar:
-        if (!QStandardPaths::findExecutable(QStringLiteral("7z")).isEmpty()) {
-            *program = QStringLiteral("7z");
+        if (!QStandardPaths::findExecutable(QStringLiteral("7zz")).isEmpty()) {
+            *program = QStringLiteral("7zz");
             *args = {QStringLiteral("x"), QStringLiteral("-aoa"),
                      QStringLiteral("-p%1").arg(pass),
                      QStringLiteral("-o%1").arg(destination), archivePath};
@@ -953,8 +934,8 @@ bool archiveListCommand(const QString &archivePath, const QString &password,
     case ArchiveKind::Rar:
         // bsdtar takes no password, so the pass-aware list always goes
         // through 7z; only the password-less fallback may use bsdtar.
-        if (!QStandardPaths::findExecutable(QStringLiteral("7z")).isEmpty()) {
-            *program = QStringLiteral("7z");
+        if (!QStandardPaths::findExecutable(QStringLiteral("7zz")).isEmpty()) {
+            *program = QStringLiteral("7zz");
             *args = {QStringLiteral("l"), QStringLiteral("-ba"), QStringLiteral("-slt"),
                      QStringLiteral("-p%1").arg(pass), archivePath};
             return true;
@@ -979,7 +960,7 @@ QStringList archiveEntriesFromOutput(const QString &program, const QString &outp
 {
     QStringList entries;
 
-    if (program == QStringLiteral("7z")) {
+    if (program == QStringLiteral("7zz")) {
         // "-slt" prints an archive-info block ("Path = <archive>") followed
         // by a "----------" line and then the entries. "-ba" drops that
         // header block, separator included, so only wait for the separator
@@ -1194,28 +1175,9 @@ int FileOperations::trashFiles(const QStringList &paths)
         [paths](ProgressReporter report) -> QString {
             QString lastError;
             const int total = paths.size();
-            // Inside a Flatpak, GLib's g_file_trash() puts files in the
-            // *sandbox's* trash (~/.var/app/<app-id>/data/Trash) because
-            // XDG_DATA_HOME is overridden. Shell out to host gio so files
-            // land in the user's real ~/.local/share/Trash.
-            const bool inFlatpak = runningInFlatpak();
             for (int i = 0; i < total; ++i) {
                 const QString normalized = normalizeLocation(paths[i]);
                 report(i, total, locationFileName(normalized));
-
-                if (inFlatpak) {
-                    QProcess proc;
-                    proc.start(QStringLiteral("flatpak-spawn"),
-                               {QStringLiteral("--host"), QStringLiteral("gio"),
-                                QStringLiteral("trash"), normalized});
-                    proc.waitForFinished(10000);
-                    if (proc.exitCode() != 0) {
-                        const QString err = QString::fromUtf8(proc.readAllStandardError()).trimmed();
-                        if (!err.isEmpty())
-                            lastError = err;
-                    }
-                    continue;
-                }
 
                 GFile *file = gFileForLocation(normalized);
                 GError *gErr = nullptr;
@@ -1238,10 +1200,6 @@ int FileOperations::restoreFromTrash(const QStringList &paths)
         [paths](ProgressReporter report) -> QString {
             QString lastError;
             const int total = paths.size();
-            // Restore reads the item's own .trashinfo instead of asking gvfs
-            // for trash::orig-path, so it works with no session daemon. That
-            // also fixes Flatpak, which used to need a host `gio` hop because
-            // the sandbox's XDG_DATA_HOME pointed gvfs at an empty trash.
             for (int i = 0; i < total; ++i) {
                 const QString localPath = localTrashPathFor(paths[i]);
                 if (localPath.isEmpty())
@@ -1669,29 +1627,9 @@ void FileOperations::openFile(const QString &path)
     connect(proc, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
             proc, &QProcess::deleteLater);
 
-    // gio:// / sftp:// / smb:// / trash:// → use `gio open` which talks
-    // to gvfs. On the host this is just `gio open <uri>`; inside a Flatpak
-    // we run it on the host so it sees the host's gvfsd mounts.
     if (isUriPath(normalized)) {
         const QStringList args = {QStringLiteral("open"), gioLocationArg(normalized)};
-        if (runningInFlatpak()) {
-            proc->start(QStringLiteral("flatpak-spawn"),
-                        QStringList{QStringLiteral("--host"), QStringLiteral("gio")} + args);
-        } else {
-            proc->start(QStringLiteral("gio"), args);
-        }
-        return;
-    }
-
-    // Local files. Outside a sandbox: hand off to Qt's QDesktopServices
-    // (which uses xdg-open / kde-open / gio-launch under the hood and
-    // honors the user's MIME associations). Inside a Flatpak: shell out
-    // to `flatpak-spawn --host xdg-open` so the host opens the file with
-    // the host's default app, completely bypassing the sandbox. This is
-    // the same pattern Nautilus and Dolphin use when running as Flatpaks.
-    if (runningInFlatpak()) {
-        proc->start(QStringLiteral("flatpak-spawn"),
-                    {QStringLiteral("--host"), QStringLiteral("xdg-open"), normalized});
+        proc->start(QStringLiteral("gio"), args);
         return;
     }
 
@@ -1842,16 +1780,8 @@ void FileOperations::openFileWith(const QString &path, const QString &desktopFil
         // `gio launch` comes from glib2, which HyprFM already requires; the
         // gtk-launch this used to call lives in gtk3 and is often absent.
         QString hostEntryPath = entryPath;
-        if (hostEntryPath.startsWith(QLatin1String("/run/host/")))
-            hostEntryPath.remove(0, qstrlen("/run/host"));
         program = QStringLiteral("gio");
         args = {QStringLiteral("launch"), hostEntryPath, normalized};
-    }
-
-    if (runningInFlatpak()) {
-        args.prepend(program);
-        args.prepend(QStringLiteral("--host"));
-        program = QStringLiteral("flatpak-spawn");
     }
 
     auto *proc = new QProcess(this);
@@ -1921,25 +1851,16 @@ void FileOperations::openInEditor(const QString &path)
 // processes on the GUI thread per right-click.
 bool FileOperations::hasClipboardImage() const
 {
-    if (const QMimeData *mime = QGuiApplication::clipboard()->mimeData()) {
-        const QStringList formats = mime->formats();
-        if (!formats.isEmpty())   // hasImage() is a format check too, no transfer
-            return mime->hasImage()
-                || std::any_of(formats.cbegin(), formats.cend(), [](const QString &format) {
-                       return format.startsWith(QLatin1String("image/"));
-                   });
-    }
-
-    // Qt sees no offer at all (the compositor only hands the clipboard to a
-    // focused client): ask wl-paste for the types, still not the data.
-    const QString wlPastePath = QStandardPaths::findExecutable(QStringLiteral("wl-paste"));
-    if (wlPastePath.isEmpty())
+    const QClipboard *clipboard = QGuiApplication::clipboard();
+    const QMimeData *mime = clipboard ? clipboard->mimeData() : nullptr;
+    if (!mime)
         return false;
-    QProcess listProcess;
-    listProcess.start(wlPastePath, {QStringLiteral("--list-types")});
-    if (!listProcess.waitForFinished(1000) || listProcess.exitCode() != 0)
-        return false;
-    return QString::fromUtf8(listProcess.readAllStandardOutput()).contains(QLatin1String("image/"));
+    if (mime->hasImage())
+        return true;
+    const QStringList formats = mime->formats();
+    return std::any_of(formats.cbegin(), formats.cend(), [](const QString &format) {
+        return format.startsWith(QLatin1String("image/"));
+    });
 }
 
 QString FileOperations::pasteClipboardImage(const QString &destinationDir)
@@ -1985,10 +1906,8 @@ QString FileOperations::pasteClipboardImage(const QString &destinationDir)
 
 void FileOperations::copyPathToClipboard(const QString &path)
 {
-    auto *proc = new QProcess(this);
-    proc->start("wl-copy", {path});
-    connect(proc, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
-            proc, &QProcess::deleteLater);
+    if (QClipboard *clipboard = QGuiApplication::clipboard())
+        clipboard->setText(path);
 }
 
 void FileOperations::openInTerminal(const QString &dirPath)
@@ -2142,7 +2061,7 @@ int FileOperations::compressFiles(const QStringList &paths, const QString &forma
     } else if (format == "7z") {
         QString outPath = parentDir + "/" + baseName + ".7z";
         outputPath = outPath;
-        program = QStringLiteral("7z");
+        program = QStringLiteral("7zz");
         args = {QStringLiteral("a"), outPath, QStringLiteral("--")};
         for (const auto &p : paths)
             args.append(QFileInfo(p).fileName());
@@ -2249,7 +2168,7 @@ int FileOperations::extractArchive(const QString &archivePath, const QString &de
     // 7z prints no per-file lines while extracting, so track its progress by
     // comparing the archive's total uncompressed size against the bytes that
     // have landed in the destination folder.
-    const bool byteBased = (program == "7z");
+    const bool byteBased = (program == "7zz");
     static const QRegularExpression sizeLineRegex(QStringLiteral("^Size = (\\d+)$"),
                                                   QRegularExpression::MultilineOption);
     auto processId = QSharedPointer<QAtomicInt>::create();
@@ -2775,83 +2694,42 @@ QString FileOperations::conflictBackupPath(const QString &targetPath) const
 
 QByteArray FileOperations::clipboardImageData() const
 {
-    const QString wlPastePath = QStandardPaths::findExecutable("wl-paste");
-    if (wlPastePath.isEmpty())
+    const QClipboard *clipboard = QGuiApplication::clipboard();
+    const QMimeData *mime = clipboard ? clipboard->mimeData() : nullptr;
+    if (!mime)
         return {};
-
-    QProcess listProcess;
-    listProcess.start(wlPastePath, {"--list-types"});
-    if (!listProcess.waitForFinished(1000) || listProcess.exitCode() != 0)
-        return {};
-
-    const QStringList types = QString::fromUtf8(listProcess.readAllStandardOutput())
-                                  .split('\n', Qt::SkipEmptyParts);
-    QString imageType;
-    if (types.contains("image/png"))
-        imageType = "image/png";
-    else {
-        for (const QString &type : types) {
-            if (type.startsWith("image/")) {
-                imageType = type;
-                break;
-            }
-        }
+    for (const QString &format : mime->formats()) {
+        if (!format.startsWith(QLatin1String("image/")))
+            continue;
+        const QImage image = QImage::fromData(mime->data(format));
+        if (image.isNull())
+            continue;
+        QByteArray png;
+        QBuffer buffer(&png);
+        buffer.open(QIODevice::WriteOnly);
+        if (image.save(&buffer, "PNG"))
+            return png;
     }
-
-    if (imageType.isEmpty())
-        return {};
-
-    QProcess imageProcess;
-    imageProcess.start(wlPastePath, {"--no-newline", "--type", imageType});
-    if (!imageProcess.waitForFinished(3000) || imageProcess.exitCode() != 0)
-        return {};
-
-    return imageProcess.readAllStandardOutput();
+    return {};
 }
 
 void FileOperations::setWallpaper(const QString &path)
 {
-    const QString resolved = QFileInfo(path).absoluteFilePath();
-    auto *proc = new QProcess(this);
-    connect(proc, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
-            this, [this, proc](int exitCode, QProcess::ExitStatus) {
-                if (exitCode != 0) {
-                    const QString err = QString::fromUtf8(proc->readAllStandardError()).trimmed();
-                    emit operationFinished(false, err.isEmpty()
-                        ? QStringLiteral("Could not set the wallpaper. Is hyprpaper running?")
-                        : QStringLiteral("Could not set the wallpaper: %1").arg(err));
-                }
-                proc->deleteLater();
-            });
-    connect(proc, &QProcess::errorOccurred, this, [this, proc](QProcess::ProcessError) {
-        emit operationFinished(false, missingToolMessage(QStringLiteral("hyprctl")));
-        proc->deleteLater();
-    });
-    proc->start(QStringLiteral("hyprctl"),
-                {QStringLiteral("hyprpaper"), QStringLiteral("wallpaper"),
-                 QStringLiteral(",") + resolved});
+    Q_UNUSED(path)
+    // TODO(FBSD-03): desktop-specific wallpaper integration.
+    emit operationFinished(false, tr("Setting wallpaper is not implemented on FreeBSD."));
 }
 
-void FileOperations::setHyprlandRounding(const QString &windowTitle, int radius)
+void FileOperations::setWindowRounding(const QString &windowTitle, int radius)
 {
-    auto *proc = new QProcess(this);
-    connect(proc, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
-            this, [proc](int, QProcess::ExitStatus) { proc->deleteLater(); });
-    proc->start(QStringLiteral("hyprctl"),
-                {QStringLiteral("setprop"),
-                 QStringLiteral("title:") + windowTitle,
-                 QStringLiteral("rounding"),
-                 QString::number(radius)});
+    Q_UNUSED(windowTitle)
+    Q_UNUSED(radius)
+    // TODO(FBSD-04): compositor-specific window rounding; intentionally a no-op.
 }
 
-void FileOperations::setHyprlandBorder(const QString &windowTitle, int size)
+void FileOperations::setWindowBorder(const QString &windowTitle, int size)
 {
-    auto *proc = new QProcess(this);
-    connect(proc, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
-            this, [proc](int, QProcess::ExitStatus) { proc->deleteLater(); });
-    proc->start(QStringLiteral("hyprctl"),
-                {QStringLiteral("setprop"),
-                 QStringLiteral("title:") + windowTitle,
-                 QStringLiteral("bordersize"),
-                 QString::number(size)});
+    Q_UNUSED(windowTitle)
+    Q_UNUSED(size)
+    // TODO(FBSD-04): compositor-specific borders; intentionally a no-op.
 }

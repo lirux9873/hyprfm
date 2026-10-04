@@ -25,24 +25,9 @@ QString encodedUri(const QString &path)
     return QUrl(path).toString(QUrl::FullyEncoded);
 }
 
-bool runningInFlatpak()
-{
-    static const bool inSandbox = QFile::exists(QStringLiteral("/.flatpak-info"));
-    return inSandbox;
-}
-
-// Spawn `gio cat <uri>` for reading trash:// URIs. Inside a Flatpak we
-// route through `flatpak-spawn --host` so the host's gio reads from the
-// host's real trash (the sandbox's gio sees only an empty per-app trash).
 void startGioCat(QProcess &proc, const QString &uri)
 {
-    if (runningInFlatpak()) {
-        proc.start(QStringLiteral("flatpak-spawn"),
-                   {QStringLiteral("--host"), QStringLiteral("gio"),
-                    QStringLiteral("cat"), uri});
-    } else {
-        proc.start(QStringLiteral("gio"), {QStringLiteral("cat"), uri});
-    }
+    proc.start(QStringLiteral("gio"), {QStringLiteral("cat"), uri});
 }
 
 QString batExecutable()
@@ -51,7 +36,7 @@ QString batExecutable()
         const QString bat = QStandardPaths::findExecutable(QStringLiteral("bat"));
         if (!bat.isEmpty())
             return bat;
-        return QStandardPaths::findExecutable(QStringLiteral("batcat"));
+        return QString();
     }();
 
     return executable;
@@ -595,7 +580,7 @@ QVariantMap PreviewService::loadArchivePreview(const QString &path, int maxEntri
 } else if (lower.endsWith(".7z") || lower.endsWith(".rar")) {
         // Always pass -p so 7z never waits for interactive input: an archive
         // without a password ignores it, an encrypted one fails immediately.
-        program = "7z";
+        program = "7zz";
         args = {"l", "-slt", "-p" + effectiveArchivePassword(password), path};
     } else {
         result["error"] = "Unsupported archive format";
@@ -626,7 +611,7 @@ QVariantMap PreviewService::loadArchivePreview(const QString &path, int maxEntri
     QStringList entries;
     bool truncated = false;
 
-    if (program == "7z") {
+    if (program == "7zz") {
         // 7z -slt output: "Path = filename" lines
         static const QRegularExpression pathRe(R"(^Path = (.+)$)", QRegularExpression::MultilineOption);
         auto it = pathRe.globalMatch(output);

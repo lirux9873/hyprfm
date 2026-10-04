@@ -290,11 +290,6 @@
 #define TOML_UNIX 0
 #endif
 
-#ifdef __linux__
-#define TOML_LINUX 1
-#else
-#define TOML_LINUX 0
-#endif
 
 // TOML_HAS_INCLUDE
 #ifndef TOML_HAS_INCLUDE
@@ -1149,7 +1144,7 @@ TOML_ENABLE_WARNINGS;
 
 #if !defined(TOML_FLOAT_CHARCONV) && (TOML_GCC || TOML_CLANG || (TOML_ICC && !TOML_ICC_CL))
 // not supported by any version of GCC or Clang as of 26/11/2020
-// not supported by any version of ICC on Linux as of 11/01/2021
+// not supported by older versions of ICC
 #define TOML_FLOAT_CHARCONV 0
 #endif
 #if !defined(TOML_INT_CHARCONV) && (defined(__EMSCRIPTEN__) || defined(__APPLE__))
@@ -17826,7 +17821,6 @@ TOML_POP_WARNINGS;
 #undef TOML_LIFETIME_HOOKS
 #undef TOML_LIKELY
 #undef TOML_LIKELY_CASE
-#undef TOML_LINUX
 #undef TOML_MAKE_FLAGS
 #undef TOML_MAKE_FLAGS_
 #undef TOML_MAKE_FLAGS_1

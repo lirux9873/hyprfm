@@ -1,256 +1,54 @@
-<div align="center">
+# HyprFM for FreeBSD
 
-<img src="dist/io.github.soyeb_jim285.HyprFM.svg" width="96" alt="HyprFM logo"/>
+A keyboard-friendly Qt 6/QML file manager for FreeBSD X11 and Wayland desktops.
+This working tree contains an uncommitted source port. It has not yet been
+compiled or run on FreeBSD; follow the validation guide before deployment.
 
-# HyprFM
+![HyprFM grid view](docs/screenshots/grid-view.png)
 
-**A fast, keyboard-friendly file manager for Hyprland and Wayland desktops.**
+## Documentation
 
-[![License](https://img.shields.io/github/license/soyeb-jim285/hyprfm?style=flat-square)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/soyeb-jim285/hyprfm?style=flat-square)](https://github.com/soyeb-jim285/hyprfm/releases)
-[![AUR](https://img.shields.io/aur/version/hyprfm-git?style=flat-square&logo=arch-linux)](https://aur.archlinux.org/packages/hyprfm-git)
-[![Build](https://img.shields.io/github/actions/workflow/status/soyeb-jim285/hyprfm/build.yml?style=flat-square)](https://github.com/soyeb-jim285/hyprfm/actions)
+- [FreeBSD installation, dependencies, build and tests](docs/INSTALL_FREEBSD.md)
+- [Port architecture, changes and validation status](docs/FREEBSD_PORT.md)
+- [Unsupported functions and future work](docs/FUTURE.md)
 
-</div>
+## Features
 
----
+- Grid, detailed and Miller column views, tabs and split panes
+- Keyboard navigation, configurable shortcuts, bookmarks and search
+- GIO copy/move with progress, trash/restore, bulk rename and undo
+- Archive creation/extraction and application associations
+- Image, text, Markdown, video and PDF previews with optional helper packages
+- Qt clipboard support, drag/drop, Git status overlays and TOML themes
+- Mounted-filesystem browsing through Qt, including FreeBSD UFS and ZFS
+- Optional remote URI access via GVFS and cloud mounts via rclone/FUSE
 
-HyprFM is a Qt6/QML file manager designed to feel native on Hyprland: lightweight, themeable, and built around fast keyboard navigation. It pairs a polished UI with the practical features power users expect, including Miller column view, kinetic scrolling, drag & drop, async operations, rich previews, and a TOML-based theme system.
+Device mount/unmount, unmounted/mobile-device discovery, wallpaper changes and
+compositor rounding/border controls are placeholders. See the future-work list
+for the exact behavior and implementation locations. Historical screenshots
+may show integrations unavailable in this port.
 
-<div align="center">
+## Quick build
 
-![HyprFM demo](docs/screenshots/demo.gif)
-*Miller columns with a live preview pane, then bulk rename with its preview list*
+On FreeBSD, install the prerequisites as root:
 
-</div>
-
-<div align="center">
-
-![Grid view](docs/screenshots/grid-view.png)
-*Grid view with built-in icon set, themed sidebar, and live preview blur*
-
-</div>
-
----
-
-## 🧭 Contents
-
-<!-- Heading emoji must not carry a U+FE0F variation selector. GitHub keeps it
-     in the generated slug but percent-encodes it inside a link, so the two
-     never match and the entry silently stops jumping. Verify with
-     `gh api repos/OWNER/REPO/readme -H 'Accept: application/vnd.github.html'`
-     after renaming a heading. -->
-
-- [✨ Features](#-features)
-  - [Views](#views)
-  - [Navigation & input](#navigation--input)
-  - [File operations](#file-operations)
-  - [Look & feel](#look--feel)
-  - [Integrations](#integrations)
-- [📦 Installation](#-installation)
-  - [Arch Linux (AUR)](#arch-linux-aur)
-  - [Flatpak (self-hosted)](#flatpak-self-hosted)
-  - [AppImage (any distro)](#appimage-any-distro)
-  - [Nix (flake)](#nix-flake)
-  - [Build from source](#build-from-source)
-- [⌨ Keyboard shortcuts](#-keyboard-shortcuts)
-  - [Navigation](#navigation)
-  - [Views](#views-1)
-  - [Tabs & windows](#tabs--windows)
-  - [File operations](#file-operations-1)
-- [⚙ Configuration](#-configuration)
-- [🎨 Theming](#-theming)
-  - [Light and dark](#light-and-dark)
-- [🧱 Architecture](#-architecture)
-- [🤝 Contributing](#-contributing)
-- [📜 License](#-license)
-
----
-
-## ✨ Features
-
-### Views
-
-- **Grid view** with adjustable column count (`Ctrl+Scroll` to zoom)
-- **Detailed view** with sortable columns, image/video thumbnails, and folder item counts
-- **Miller columns** (`Ctrl+2`): parent · current · live preview, the macOS Finder favorite
-- **Image and video thumbnails** in detailed and Miller views
-- **Quick preview** (`Space`): full-screen overlay for images, video (poster frame), PDFs, text and rendered Markdown, with metadata sidebar
-- **Split pane** (`F3`): work in two directories side by side
-
-<div align="center">
-
-![Miller view](docs/screenshots/miller-view.png)
-*Miller column view with rich text preview and syntax highlighting*
-
-</div>
-
-### Navigation & input
-
-- **Full keyboard navigation**: arrows, vim-friendly shortcuts, type-ahead search
-- **Tabs** with independent history per pane
-- **Path bar** with breadcrumbs and inline editing (`Ctrl+L`)
-- **Bookmarks sidebar** with drag-to-reorder, inline rename, and udisks2 device mounting
-- **Kinetic wheel scrolling** with momentum and rubber-band overscroll
-- **Rubber-band selection** in all views
-
-### File operations
-
-- **Async copy / move** via GIO with live progress, speed, ETA, and pause
-- **Drag & drop** between panes, tabs, and external apps (Wayland-native)
-- **Trash** with restore (XDG-compliant)
-- **Bulk rename**: find/replace (plain or regex), prefix/suffix, numbered sequences
-- **Compress / extract** archives
-- **Open With** dialog populated from `.desktop` entries
-- **Undo/redo** for file operations
-
-### Look & feel
-
-- **TOML themes** with live reload — Catppuccin Mocha/Latte and Rose Pine/Moon/Dawn bundled
-- **Built-in SVG icon set** (90+ Lucide-style icons rendered via Qt Shapes)
-- **Configurable corner radius**, fonts, animation duration
-- **Wayland compositor blur** on Hyprland plus native KWin blur on KDE Plasma
-
-### Integrations
-
-- **udisks2** mount/unmount of removable drives
-- **gvfs / gio** for SFTP, SMB and MTP (the trash is read directly and does not need it)
-- **Git status overlays** in file lists (modified, staged, untracked, …)
-- **wl-clipboard** for system clipboard
-- **bat** for syntax-highlighted text previews
-- **md4c** for rendered Markdown previews (via `md2html`)
-- **ffmpeg** for video poster thumbnails
-- **Poppler** for PDF page previews
-
-<div align="center">
-
-![Quick preview](docs/screenshots/quick-preview.png)
-*Quick preview overlay (Space): image preview with full metadata sidebar*
-
-</div>
-
----
-
-## 📦 Installation
-
-### Arch Linux (AUR)
-
-```bash
-yay -S hyprfm-git
+```sh
+pkg install git cmake ninja pkgconf qt6-base qt6-declarative qt6-svg glib dbus
 ```
 
-The PKGBUILD pulls latest `main`, builds with Ninja + parallel jobs + tests disabled, and installs to `/usr/bin/hyprfm`.
+From this modified source tree, as your desktop user:
 
-### Flatpak (self-hosted)
-
-HyprFM publishes a signed Flatpak repository at `hyprfm.soyebjim.me`. Because HyprFM depends on the KDE Platform runtime from Flathub, the Flathub remote must exist at the **same scope** you install into. For `--user` installs, that means a `--user` Flathub remote. Add both remotes once and install:
-
-```bash
-# Flathub at user scope (provides org.kde.Platform)
-flatpak remote-add --user --if-not-exists \
-    flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-
-# HyprFM repo
-flatpak remote-add --user --if-not-exists \
-    hyprfm https://flatpak.hyprfm.soyebjim.me/hyprfm.flatpakrepo
-flatpak install --user hyprfm io.github.soyeb_jim285.HyprFM
+```sh
+git submodule update --init --recursive
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_PREFIX_PATH=/usr/local -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_TESTS=ON
+cmake --build build --parallel "$(sysctl -n hw.ncpu)"
 ```
 
-If you'd rather install system-wide, drop every `--user` flag and prefix with `sudo`; system Flathub is already configured on most distros.
-
-Updates arrive via the usual `flatpak update`. The repo is signed with a GPG key committed at [`public-key.asc`](https://github.com/soyeb-jim285/hyprfm-flatpak-repo/blob/main/public-key.asc); Flatpak verifies every download against it automatically.
-
-Each tagged release also attaches an `HyprFM-vX.Y.Z-x86_64.flatpak` bundle to the GitHub release for users who want a single-file install without adding a remote.
-
-### AppImage (any distro)
-
-```bash
-curl -LO "$(curl -fsSL https://api.github.com/repos/soyeb-jim285/hyprfm/releases/latest \
-    | grep -o 'https://[^"]*\.AppImage')"
-chmod +x HyprFM-*.AppImage
-./HyprFM-*.AppImage
-```
-
-The asset name carries the version, so grab the current one from the
-[releases page](https://github.com/soyeb-jim285/hyprfm/releases/latest) if you would rather not pipe through `curl`.
-
-The AppImage is fully self-contained. You do not need a system Qt installation.
-
-### Nix (flake)
-
-```bash
-nix run github:soyeb-jim285/hyprfm
-```
-
-Or pull it into a system/home-manager flake:
-
-```nix
-{
-  inputs.hyprfm.url = "github:soyeb-jim285/hyprfm";
-}
-```
-
-then reference `hyprfm.packages.<system>.default` in `environment.systemPackages` / `home.packages`. The package version is parsed straight from `CMakeLists.txt`, so it always tracks the tree it's built from.
-
-The package bundles the tools HyprFM shells out to, including archive handling,
-previews, search and the gvfs client module, so nothing else has to be
-installed alongside it.
-
-It cannot bundle the gvfs daemon. `gvfsd` and its backends are D-Bus-activated
-per-session services, so they come from the session rather than from an
-application's closure. On NixOS:
-
-```nix
-services.gvfs.enable = true;
-```
-
-Without it the Trash still works, because HyprFM reads the trash directories
-directly, but the Network sidebar (`sftp://`, `smb://`, `mtp://`) has nothing to
-connect to. On a non-NixOS host the distro's own gvfs covers this.
-
-### Build from source
-
-```bash
-git clone --recursive https://github.com/soyeb-jim285/hyprfm.git
-cd hyprfm
-cmake -B build -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DBUILD_TESTS=OFF
-cmake --build build --parallel
-./build/src/hyprfm
-```
-
-> **Note:** the `--recursive` flag is important: HyprFM uses Git submodules for the [Quill](https://github.com/soyeb-jim285/quill) component library and the [quill-icons](https://github.com/soyeb-jim285/quill-icons) icon set.
-
-#### AppImage from source
-
-To build a self-contained AppImage from the current checkout, useful for testing a fix that is on `main` but not yet released:
-
-```bash
-./scripts/build-appimage-local.sh
-```
-
-The result lands in the repo root as `HyprFM-<version>-x86_64.AppImage`. The script downloads `linuxdeploy` into `appimage-tools/` on first run, bundles Qt, and runs an offscreen smoke test before finishing. It needs `curl` or `wget` on top of the build dependencies below.
-
-#### Dependencies
-
-| | Packages |
-|---|---|
-| **Required (build)** | `cmake`, `ninja`, `qt6-base`, `qt6-declarative`, `qt6-svg` |
-| **Required (runtime)** | `qt6-base`, `qt6-declarative`, `qt6-svg`, `qt6-wayland`, `glib2`, `xdg-utils` |
-| **Archives** | `tar`, `gzip`, `bzip2`, `xz`, `zstd`, `zip`, `unzip`, `p7zip` (`7z`), `libarchive` (`bsdtar`). Compress and extract call these by name, so a missing one only breaks that format. |
-| **Optional** | `kwindowsystem` / `KF6WindowSystem` (native KDE blur), `wl-clipboard` (clipboard), `fd` (fast search), `bat` (syntax highlighting), `md4c` (rendered Markdown previews via `md2html`; see the note below), `git` (git status overlays), `gvfs` (SFTP/SMB/MTP; not needed for the trash), `gvfs-smb` (SMB), `gvfs-mtp` (Android/MTP phones), `ffmpeg` (video thumbnails), `exiftool` (metadata sidebar), `udisks2` (device mounting), `poppler` / `poppler-utils` (PDF previews via `pdftoppm`) |
-
-A note on Markdown previews: `md2html` ships in the `md4c` package on Arch
-and Alpine, and in `pkgs.md4c` on Nix. Debian and Ubuntu package md4c's
-libraries but **not** its command line tool, and Fedora has no md4c binary
-package either, so on those distributions build `md2html` from
-[md4c](https://github.com/mity/md4c) if you want rendered Markdown. Without
-it, `.md` files fall back to `bat` and show as highlighted source, exactly
-as they did before. The Flatpak bundles `md2html` itself, so no extra
-install is needed there.
-
----
+See the installation guide for optional tools, test isolation and installation.
+After validation, run `cmake --install build` as root. Launch `hyprfm` as an
+ordinary desktop user. A fresh upstream clone does not contain these unpublished
+FreeBSD changes.
 
 ## ⌨ Keyboard shortcuts
 
@@ -411,13 +209,13 @@ shortcut = "Ctrl+E"                 # optional; runs the action on the selection
 
 ## 🎨 Theming
 
-Themes are plain TOML files. Nothing is hardcoded in the binary. Five themes
-ship in `/usr/share/hyprfm/themes/*.toml` — `catppuccin-mocha`,
+Themes are plain TOML files. Nothing is hardcoded in the binary. Bundled themes
+ship in `/usr/local/share/hyprfm/themes/*.toml` — `catppuccin-mocha`,
 `catppuccin-latte`, `rose-pine`, `rose-pine-moon` and `rose-pine-dawn`. Copy one
 as a starting point:
 
 ```sh
-cp /usr/share/hyprfm/themes/catppuccin-mocha.toml ~/.config/hyprfm/themes/mytheme.toml
+cp /usr/local/share/hyprfm/themes/catppuccin-mocha.toml ~/.config/hyprfm/themes/mytheme.toml
 ```
 
 `~/.config/hyprfm/themes/` is created on first run and searched first, so a file
@@ -472,7 +270,7 @@ follow a system-wide toggle, have that toggle rewrite `theme` in
 no restart and no need for HyprFM to be running at the time.
 
 ```sh
-sed -i 's/^theme = .*/theme = "rose-pine-dawn"/' ~/.config/hyprfm/config.toml
+sed -i '' 's/^theme = .*/theme = "rose-pine-dawn"/' ~/.config/hyprfm/config.toml
 ```
 
 The only time the desktop is consulted is the very first launch, when there is
@@ -481,30 +279,18 @@ dark so the initial theme matches rather than always starting dark.
 
 ---
 
-## 🧱 Architecture
+## Architecture and development
 
-HyprFM is a three-layer Qt6 application:
+QML provides the frontend; C++ models, services and providers supply the
+backend. Qt and GIO provide the desktop and filesystem integration. The Quill
+and icon libraries are pinned submodules. See the port notes for details.
 
-- **QML frontend** (`src/qml/`): all rendering. `Main.qml` wires tab state, selection, and shortcuts. Views (`FileGridView`, `FileDetailedView`, `FileMillerView`) are switched by `FileViewContainer`. The [Quill](https://github.com/soyeb-jim285/quill) component library provides themed Buttons, TextFields, Cards, etc.
-- **C++ backend** (`src/models/`, `src/services/`, `src/providers/`): `QAbstractListModel` subclasses for files, tabs, bookmarks, devices. Async services for clipboard, file operations, search, disk usage, previews. Exposed to QML via `setContextProperty`.
-- **System layer**: GIO (`GioTransferWorker`) for transfers, UDisks2 over DBus for devices, `wl-copy` for clipboard.
+Run `sh scripts/check-freebsd.sh` on FreeBSD for an isolated offscreen test run.
+Use a disposable desktop account for graphical tests and explicitly set
+`HYPRFM_TEST_MOUNT` for scratch-volume tests. Match the existing four-space
+C++/QML style. Publishing workflows are absent from this port.
 
----
+## License
 
-## 🤝 Contributing
-
-Issues and PRs welcome! A few notes:
-
-- Tests are off in the build recipe above; configure with `-DBUILD_TESTS=ON` and run `ctest --test-dir build`
-- Pull requests are built and tested automatically by the `Build` workflow
-- Match the existing code style (4-space indent for QML and C++)
-- The project uses Git submodules, so run `git submodule update --init --recursive` after pulling
-- AppImage builds are produced automatically on `v*` tags by the GitHub Actions workflow
-
----
-
-## 📜 License
-
-[MIT](LICENSE) © Soyeb Pervez Jim
-
-Built with [Qt 6](https://www.qt.io/) · Icons from [Lucide](https://lucide.dev/) · Inspired by macOS Finder, Nautilus, and Dolphin.
+[MIT](LICENSE). Original project by Soyeb Pervez Jim; upstream library licenses
+remain in their source trees.

@@ -1,3 +1,5 @@
+#include <QStorageInfo>
+#include <QBuffer>
 #include <QTest>
 #include <QScopeGuard>
 #include <QClipboard>
@@ -95,12 +97,57 @@ class TestFileOperations : public QObject
             archiveDir.createFile("payload/f" + QString::number(i) + ".dat", data);
         }
         const QString archivePath = archiveDir.path() + "/wide.7z";
-        if (!runCommand("7z", {"a", archivePath, "payload"}, archiveDir.path(), 120000))
+        if (!runCommand("7zz", {"a", archivePath, "payload"}, archiveDir.path(), 120000))
             return {};
         return archivePath;
     }
 
 private slots:
+    void testCopyPathUsesQtClipboard()
+    {
+        QClipboard *clipboard = QGuiApplication::clipboard();
+        QVERIFY(clipboard);
+        const auto cleanup = qScopeGuard([clipboard] { clipboard->clear(); });
+        FileOperations ops;
+        ops.copyPathToClipboard(QStringLiteral("/tmp/a path with spaces"));
+        QCOMPARE(clipboard->text(), QStringLiteral("/tmp/a path with spaces"));
+    }
+
+    void testRawClipboardImageIsConvertedToPng()
+    {
+        TestDir dir;
+        QClipboard *clipboard = QGuiApplication::clipboard();
+        QVERIFY(clipboard);
+        const auto cleanup = qScopeGuard([clipboard] { clipboard->clear(); });
+        QImage source(3, 3, QImage::Format_RGB32);
+        source.fill(Qt::green);
+        QByteArray bytes;
+        QBuffer buffer(&bytes);
+        QVERIFY(buffer.open(QIODevice::WriteOnly));
+        QVERIFY(source.save(&buffer, "BMP"));
+        auto *mime = new QMimeData;
+        mime->setData("image/bmp", bytes);
+        clipboard->setMimeData(mime);
+        FileOperations ops;
+        QVERIFY(ops.hasClipboardImage());
+        const QString outputPath = ops.pasteClipboardImage(dir.path());
+        QVERIFY(!outputPath.isEmpty());
+        QFile file(outputPath);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        QCOMPARE(file.read(8), QByteArray::fromHex("89504e470d0a1a0a"));
+        QCOMPARE(QImage(outputPath).pixelColor(0, 0), QColor(Qt::green));
+    }
+
+    void testWallpaperPlaceholderReportsFailure()
+    {
+        FileOperations ops;
+        QSignalSpy result(&ops, &FileOperations::operationFinished);
+        ops.setWallpaper(QStringLiteral("/tmp/example.png"));
+        QCOMPARE(result.count(), 1);
+        QVERIFY(!result.first().first().toBool());
+        QVERIFY(result.first().at(1).toString().contains("not implemented"));
+    }
+
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);
@@ -460,7 +507,7 @@ private slots:
 
         FileOperations ops;
         // Renaming a.txt to b.txt when b.txt exists — behavior is platform-dependent
-        // On Linux, QFile::rename may overwrite or fail; just verify no crash
+        // QFile::rename may overwrite or fail; just verify no crash
         ops.rename(dir.path() + "/a.txt", "b.txt");
     }
 
@@ -1164,16 +1211,15 @@ private slots:
 
     void testTrashHelpersForMountedVolume()
     {
-        const QString mediaRoot = "/run/media/" + qEnvironmentVariable("USER");
-        QDir mediaDir(mediaRoot);
-        if (!mediaDir.exists())
-            QSKIP("/run/media/$USER does not exist");
+        const QString mountPath = qEnvironmentVariable("HYPRFM_TEST_MOUNT");
+        if (mountPath.isEmpty())
+            QSKIP("Set HYPRFM_TEST_MOUNT to a writable scratch filesystem mount point");
+        const QStorageInfo volume(mountPath);
+        QVERIFY(volume.isValid() && volume.isReady());
+        QCOMPARE(QDir::cleanPath(volume.rootPath()), QDir::cleanPath(mountPath));
+        QVERIFY(QFileInfo(mountPath).isWritable());
+        QVERIFY(mountPath != QStringLiteral("/"));
 
-        const QStringList entries = mediaDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-        if (entries.isEmpty())
-            QSKIP("No mounted volumes found under /run/media/$USER");
-
-        const QString mountPath = mediaDir.filePath(entries.constFirst());
         FileOperations ops;
 
         const QString expectedTrashPath = QDir::cleanPath(
@@ -1196,7 +1242,7 @@ private slots:
     void testArchiveSupportFor7zAndRar()
     {
         QFETCH(QString, extension);
-        const QString tool = extension == ".7z" ? QStringLiteral("7z") : QStringLiteral("rar");
+        const QString tool = extension == ".7z" ? QStringLiteral("7zz") : QStringLiteral("rar");
         if (QStandardPaths::findExecutable(tool).isEmpty())
             QSKIP(qPrintable(tool + " not found in PATH"));
 
@@ -1225,7 +1271,7 @@ private slots:
     // and succeed once the real password is handed to the retry.
     void testExtractPasswordProtectedArchive()
     {
-        if (QStandardPaths::findExecutable(QStringLiteral("7z")).isEmpty())
+        if (QStandardPaths::findExecutable(QStringLiteral("7zz")).isEmpty())
             QSKIP("7z not found in PATH");
 
         TestDir archiveDir;
@@ -1233,7 +1279,7 @@ private slots:
         archiveDir.createDir("payload");
         archiveDir.createFile("payload/inner.txt", "secret");
         const QString archivePath = archiveDir.path() + "/locked_headers.7z";
-        QVERIFY(runCommand("7z",
+        QVERIFY(runCommand("7zz",
             {"a", "-ptest", "-mhe=on", archivePath, "payload"}, archiveDir.path()));
         QVERIFY(QFile::exists(archivePath));
 
@@ -1430,7 +1476,7 @@ private slots:
     // let the extraction run to completion.
     void testCancelStopsExtractionMidFlight()
     {
-        if (QStandardPaths::findExecutable(QStringLiteral("7z")).isEmpty())
+        if (QStandardPaths::findExecutable(QStringLiteral("7zz")).isEmpty())
             QSKIP("7z not found in PATH");
 
         TestDir archiveDir;
@@ -1478,7 +1524,7 @@ private slots:
     // progress must stop moving until it is resumed.
     void testPauseFreezesExtractProgress()
     {
-        if (QStandardPaths::findExecutable(QStringLiteral("7z")).isEmpty())
+        if (QStandardPaths::findExecutable(QStringLiteral("7zz")).isEmpty())
             QSKIP("7z not found in PATH");
 
         TestDir archiveDir;
@@ -1583,7 +1629,7 @@ private slots:
         QTest::addColumn<QString>("format");
         QTest::addColumn<QString>("extension");
         QTest::addColumn<QString>("tool");
-        QTest::newRow("7z") << "7z" << ".7z" << "7z";
+        QTest::newRow("7z") << "7z" << ".7z" << "7zz";
         QTest::newRow("zip") << "zip" << ".zip" << "zip";
         QTest::newRow("tar.gz") << "tar.gz" << ".tar.gz" << "tar";
         QTest::newRow("tar.zst") << "tar.zst" << ".tar.zst" << "zstd";

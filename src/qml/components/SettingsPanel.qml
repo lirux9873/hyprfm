@@ -22,14 +22,14 @@ Window {
     readonly property int dialogMinHeight: 420
     readonly property int dialogRadius: draftRadiusLarge + 6
 
-    function syncHyprlandRounding() {
-        fileOps.setHyprlandRounding(root.title, root.dialogRadius)
-        fileOps.setHyprlandBorder(root.title, 0)
+    function syncWindowRounding() {
+        fileOps.setWindowRounding(root.title, root.dialogRadius)
+        fileOps.setWindowBorder(root.title, 0)
     }
 
     onDialogRadiusChanged: {
         if (root.visible)
-            syncHyprlandRounding()
+            syncWindowRounding()
     }
 
     readonly property color sectionBorderColor: Qt.rgba(Theme.text.r, Theme.text.g, Theme.text.b, 0.08)
@@ -353,7 +353,7 @@ Window {
         root.show()
         root.raise()
         root.requestActivate()
-        root.syncHyprlandRounding()
+        root.syncWindowRounding()
     }
 
     function closePanel() {
@@ -1193,7 +1193,7 @@ Window {
         id: pageContainer
         anchors.fill: parent
 
-        // One height for every section. Hyprland keeps a floating window at
+        // One height for every section. The window manager keeps a floating window at
         // the size it mapped with, so shrinking for a shorter section left a
         // stale band of the previous page below the content (issue #12).
         // Sections taller than this scroll inside contentFlick.

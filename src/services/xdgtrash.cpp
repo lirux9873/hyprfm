@@ -76,12 +76,7 @@ QStringList roots()
 {
     QStringList found;
 
-    // Two home candidates on purpose. GLib's g_file_trash() — what actually
-    // moves files in — resolves the trash through XDG_DATA_HOME, so that one
-    // has to be scanned or a user who sets it sees an empty Trash. The plain
-    // ~/.local/share path is kept as well because under Flatpak XDG_DATA_HOME
-    // points into ~/.var/app/<id>/data while the user's real trash is still
-    // the one they expect to see.
+// Read the XDG trash directly without a session daemon.
     for (const QString &candidate : {xdgDataTrashRoot(), homeRoot()}) {
         if (!candidate.isEmpty() && looksLikeTrashRoot(candidate))
             found.append(QDir::cleanPath(candidate));

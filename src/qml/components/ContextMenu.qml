@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Shapes
 import HyprFM
 
-// Custom context menu — Hyprland compositor handles blur via windowrule
+// Custom context menu — desktop compositor handles blur via windowrule
 Item {
     id: root
     anchors.fill: parent

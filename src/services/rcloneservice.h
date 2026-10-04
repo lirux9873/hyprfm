@@ -40,7 +40,7 @@ private:
     bool checkRcloneAvailable() const;
     void ensureMountsBaseDirExists() const;
     void startRcloneMountProcess(const QString &remoteName, const QString &mountPath);
-    void releaseMountPoint(const QString &mountPath, const std::function<void()> &then);
+    void releaseMountPoint(const QString &mountPath, const std::function<void(bool)> &then);
     void runUnmountTool(const QString &tool, const QString &mountPath,
                         const std::function<void(bool)> &done);
 

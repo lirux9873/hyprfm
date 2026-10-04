@@ -759,7 +759,7 @@ Rectangle {
 
                             if (model.mounted)
                                 root.bookmarkClicked(model.mountPoint)
-                            else if (model.backend === "udisks2" && !runtimeFeatures.udisksctlAvailable)
+                            else if (model.backend === "freebsd" && !runtimeFeatures.deviceMountAvailable)
                                 root.featureHintRequested(runtimeFeatures.installHint("deviceMount"))
                             else
                                 devices.mount(index)
