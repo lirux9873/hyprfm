@@ -1,8 +1,15 @@
 # HyprFM for FreeBSD
 
 A keyboard-friendly Qt 6/QML file manager for FreeBSD X11 and Wayland desktops.
-This working tree contains an uncommitted source port. It has not yet been
-compiled or run on FreeBSD; follow the validation guide before deployment.
+Maintained at [lirux9873/hyprfm](https://github.com/lirux9873/hyprfm).
+Tested by the fork maintainer on **FreeBSD 15.1**, with no issues reported so far.
+This is a user-reported runtime result; full automated-suite and display/backend
+coverage have not yet been recorded.
+
+This is an independent FreeBSD fork of
+[HyprFM by Soyeb Pervez Jim (soyeb-jim285/hyprfm)](https://github.com/soyeb-jim285/hyprfm).
+The original application, design and history come from that upstream project;
+this fork adapts it for FreeBSD. It is not an official upstream release.
 
 ![HyprFM grid view](docs/screenshots/grid-view.png)
 
@@ -11,6 +18,8 @@ compiled or run on FreeBSD; follow the validation guide before deployment.
 - [FreeBSD installation, dependencies, build and tests](docs/INSTALL_FREEBSD.md)
 - [Port architecture, changes and validation status](docs/FREEBSD_PORT.md)
 - [Unsupported functions and future work](docs/FUTURE.md)
+- [License, attribution and publishing the fork](docs/PUBLISHING.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Features
 
@@ -36,10 +45,11 @@ On FreeBSD, install the prerequisites as root:
 pkg install git cmake ninja pkgconf qt6-base qt6-declarative qt6-svg glib dbus
 ```
 
-From this modified source tree, as your desktop user:
+Clone this FreeBSD fork and build as your desktop user:
 
 ```sh
-git submodule update --init --recursive
+git clone --recurse-submodules https://github.com/lirux9873/hyprfm.git
+cd hyprfm
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH=/usr/local -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_TESTS=ON
 cmake --build build --parallel "$(sysctl -n hw.ncpu)"
@@ -47,8 +57,8 @@ cmake --build build --parallel "$(sysctl -n hw.ncpu)"
 
 See the installation guide for optional tools, test isolation and installation.
 After validation, run `cmake --install build` as root. Launch `hyprfm` as an
-ordinary desktop user. A fresh upstream clone does not contain these unpublished
-FreeBSD changes.
+ordinary desktop user. For an existing checkout, run
+`git submodule update --init --recursive` before building.
 
 ## ⌨ Keyboard shortcuts
 
@@ -292,5 +302,9 @@ C++/QML style. Publishing workflows are absent from this port.
 
 ## License
 
-[MIT](LICENSE). Original project by Soyeb Pervez Jim; upstream library licenses
-remain in their source trees.
+The application and this FreeBSD fork are distributed under [MIT](LICENSE).
+The original `Copyright (c) 2025-present Jim` notice is retained unchanged.
+Maintaining this fork does not transfer ownership of the upstream work.
+Included components retain their own licenses; see
+[third-party notices](THIRD_PARTY_NOTICES.md) and the
+[publishing guide](docs/PUBLISHING.md).

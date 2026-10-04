@@ -46,7 +46,14 @@ if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-install(FILES README.md DESTINATION ${CMAKE_INSTALL_DOCDIR})
+install(FILES README.md THIRD_PARTY_NOTICES.md LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR})
+install(FILES licenses/tomlplusplus-LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR}/licenses)
 install(DIRECTORY docs/ DESTINATION ${CMAKE_INSTALL_DOCDIR}/docs
     FILES_MATCHING PATTERN "*.md" PATTERN "*.png" PATTERN "*.gif")
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/hyprfm)
+install(FILES src/qml/Quill/LICENSE
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/hyprfm RENAME Quill-LICENSE)
+install(FILES src/qml/icons/LICENSE
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/hyprfm RENAME quill-icons-LICENSE)
+install(FILES licenses/tomlplusplus-LICENSE
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/hyprfm)

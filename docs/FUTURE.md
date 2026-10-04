@@ -12,9 +12,11 @@ remain linked.
 | FBSD-04 | `FileOperations::setWindowRounding`, `setWindowBorder` | Deliberate no-ops; Qt/QML styling and the window manager determine appearance. | Integrate with a supported compositor only where its API exists. These settings are cosmetic and must not spawn failing helper processes. |
 | FBSD-05 | `releaseUnusedAllocatorPages` in `main.cpp` | No-op after window-close garbage collection; ordinary allocator reclamation remains active. | Evaluate FreeBSD allocator-specific purge APIs only after measuring retained memory. |
 
-Native validation and follow-ups:
+The maintainer has tested the port on FreeBSD 15.1 with no issues reported so
+far. The placeholders above remain intentional limitations. Further validation
+and follow-ups:
 
-- Compile and execute the full suite on FreeBSD, in both ordinary and unity/PCH
+- Record full-suite results on FreeBSD, in both ordinary and unity/PCH
   builds; validate Qt's compiled QML on an installed Release build.
 - Run X11 and Wayland desktop tests, including clipboard ownership, decorations,
   drag/drop, portals and optional KWin effects.

@@ -1,9 +1,10 @@
 # Installing HyprFM on FreeBSD
 
-This is a source port targeting FreeBSD desktop systems with Qt 6. It has not
-yet been compiled or run on FreeBSD. The editing host was Windows, without a
-FreeBSD compiler/sysroot or Qt development installation. Complete the validation
-steps below before treating it as a tested release.
+This Qt 6 source port is maintained at
+[lirux9873/hyprfm](https://github.com/lirux9873/hyprfm). The fork maintainer has
+tested it on FreeBSD 15.1 and reports no issues so far. The precise Qt version,
+display session and automated-test results have not been recorded; the
+validation procedure below remains relevant for release testing.
 
 ## Dependencies
 
@@ -51,16 +52,13 @@ is absent. The application itself must run as your desktop user.
 For a fresh checkout:
 
 ```sh
-git clone --recurse-submodules https://github.com/soyeb-jim285/hyprfm.git
+git clone --recurse-submodules https://github.com/lirux9873/hyprfm.git
 cd hyprfm
 ```
 
-The FreeBSD changes currently exist only in the edited working tree; they have
-not been committed or published. A fresh upstream clone does **not** contain
-them. Transfer this modified source tree to FreeBSD, including both populated
-`src/qml/Quill` and `src/qml/icons` directories, or apply a patch containing all
-modified, deleted and new files. Do not forget the new documentation and tests.
-For a Git checkout, populate the pinned submodules with:
+Use this fork for the FreeBSD changes. The original project is
+[soyeb-jim285/hyprfm](https://github.com/soyeb-jim285/hyprfm).
+For an existing checkout, populate the pinned submodules with:
 
 ```sh
 git submodule update --init --recursive

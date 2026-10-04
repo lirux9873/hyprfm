@@ -2,9 +2,12 @@
 
 ## Scope and status
 
-The application now targets FreeBSD. All changes are uncommitted. No release,
-package or deployment has been produced. Source/static checks were performed
-on Windows; native compilation, Qt tests and desktop behavior remain unverified.
+The FreeBSD source port is published at
+[lirux9873/hyprfm](https://github.com/lirux9873/hyprfm), derived from
+[soyeb-jim285/hyprfm](https://github.com/soyeb-jim285/hyprfm).
+The fork maintainer reports successful testing on FreeBSD 15.1 with no issues
+so far. A full Qt test-suite result and display/backend coverage have not been
+recorded. Source publication does not imply a packaged binary release.
 See [installation and validation](INSTALL_FREEBSD.md) and the
 [future-work list](FUTURE.md) before using this as a release candidate.
 
@@ -51,13 +54,17 @@ on the FreeBSD GVFS package's enabled backends, not on the device sidebar.
 
 ## Validation record
 
-The pinned QML submodules were initialized without changing their revisions.
+The fork maintainer subsequently tested the port on FreeBSD 15.1 and reported
+that it works without issues so far. This supersedes the initial lack of native
+runtime validation. No exact tested commit, Qt version, architecture, desktop
+session or CTest output was supplied, so no broader coverage is claimed.
+
+During the initial port, the pinned QML submodules were initialized without changing their revisions.
 Static review covers obsolete platform references, QML/C++ property names,
 build source paths, XML metadata, shell syntax and whitespace. These checks do
 not establish ABI compatibility or runtime correctness. No FreeBSD compiler or
-Qt development tools were available on the editing host; no C++/QML test-pass
-claim is made. Run the commands and manual checks in INSTALL_FREEBSD.md on a
-FreeBSD desktop before release.
+Qt development tools were available on the initial editing host. Run and record
+the commands and manual checks in INSTALL_FREEBSD.md for each release candidate.
 
 Completed static checks: 111 QML and 29 C++ application source paths exist;
 local documentation links resolve; AppStream XML parses; maintained source has
