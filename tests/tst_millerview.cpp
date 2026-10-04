@@ -32,6 +32,30 @@ class TestMillerView : public QObject
     };
 
 private slots:
+    void testPreviewBaseUrlSurvivesLoadingAndClearing()
+    {
+        MillerHarness h;
+        QVERIFY(h.loadMiller());
+        QQuickItem *preview = h.item("millerPreviewColumn");
+        QVERIFY(preview);
+        const QUrl fallback = preview->property("markdownBaseUrl").toUrl();
+        QVERIFY(!fallback.scheme().isEmpty());
+
+        // No Markdown result has arrived: the file's directory must already
+        // resolve images correctly, including spaces, # and literal percent.
+        const QString path = h.files.path() + "/folder #100%/README.md";
+        QVERIFY(preview->setProperty("previewFilePath", path));
+        const QUrl expected = QUrl::fromLocalFile(h.files.path() + "/folder #100%/");
+        QTRY_COMPARE(preview->property("markdownBaseUrl").toUrl(), expected);
+        QCOMPARE(expected.resolved(QUrl("image.png")).toLocalFile(),
+                 h.files.path() + "/folder #100%/image.png");
+
+        QVERIFY(preview->setProperty("previewFilePath", QString()));
+        QTRY_COMPARE(preview->property("markdownBaseUrl").toUrl(), fallback);
+        QVERIFY(preview->setProperty("previewFilePath", QStringLiteral("sftp://host/readme.md")));
+        QCOMPARE(preview->property("markdownBaseUrl").toUrl(), fallback);
+    }
+
     void testLeftDividerDragChangesParentFraction()
     {
         MillerHarness h;

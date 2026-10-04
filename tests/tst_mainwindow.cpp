@@ -652,6 +652,12 @@ private slots:
         QVERIFY(preview);
         QVERIFY(preview->property("active").toBool());
         QCOMPARE(preview->property("filePath").toString(), file.fileName());
+        // A valid base is needed before a Markdown result arrives, and after
+        // clearing, when TextEdit may still hold the previous rich text.
+        QCOMPARE(preview->property("markdownBaseUrl").toUrl(),
+                 QUrl::fromLocalFile(app.home.path() + "/"));
+        QVERIFY(preview->setProperty("filePath", QString()));
+        QVERIFY(!preview->property("markdownBaseUrl").toUrl().scheme().isEmpty());
     }
 
     // The cut and paste badges only build their icon while they show; cutting

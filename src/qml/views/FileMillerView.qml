@@ -1380,8 +1380,11 @@ FocusScope {
             }
 
             readonly property url markdownBaseUrl: {
-                if (!previewColumn.isMarkdown || previewColumn.previewFilePath === "")
-                    return ""
+                // HTML and the Markdown flag update asynchronously. Never clear
+                // the URL while TextEdit may still be resolving an old image.
+                // Only absolute local paths may become file URLs.
+                if (!previewColumn.previewFilePath.startsWith("/"))
+                    return Qt.resolvedUrl(".")
                 var path = previewColumn.previewFilePath
                 var dir = path.substring(0, path.lastIndexOf("/"))
                 return "file://" + dir.split("/").map(encodeURIComponent).join("/") + "/"

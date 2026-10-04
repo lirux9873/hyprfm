@@ -146,8 +146,10 @@ Item {
     // draws a broken-image glyph for every one. Each segment is encoded, so a
     // folder with a space or a '#' in its name still resolves.
     readonly property url markdownBaseUrl: {
-        if (!root.isMarkdown || root.filePath === "")
-            return ""
+        // Keep a scheme even while preview data resets or finishes loading;
+        // TextEdit can still be resolving images from the previous document.
+        if (!root.filePath.startsWith("/"))
+            return Qt.resolvedUrl(".")
         var dir = root.filePath.substring(0, root.filePath.lastIndexOf("/"))
         return "file://" + dir.split("/").map(encodeURIComponent).join("/") + "/"
     }
